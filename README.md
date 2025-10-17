@@ -2,14 +2,11 @@
 
 numero_dpe
 date_etablissement_dpe
-version_dpe
 etiquette_dpe
-etiquette_ges
 type_batiment
 periode_construction
 surface_habitable_logement
 classe_inertie_batiement
-zone_climatique
 adresse_ban
 code_postal_ban
 code_insee_ban
