@@ -1,8 +1,22 @@
 # R-Shiny-DPE-Projet
 
-
-
-\## Coucou
-
-\### C'est moi
-
+numero_dpe
+date_etablissement_dpe
+etiquette_dpe
+type_batiment
+periode_construction
+surface_habitable_logement
+classe_inertie_batiement
+adresse_ban
+code_postal_ban
+code_insee_ban
+code_region_ban
+coordonnee_carthographie_x_ban
+coordonnee_carthographie_y_ban
+deperdition_enveloppe
+qualite_isolation_enveloppe
+conso_5_usage_ep
+conso_5_usage_par_m2_ep
+type_energie_n1
+cout_total_5_usages
+type_energie_principal_chauffage
