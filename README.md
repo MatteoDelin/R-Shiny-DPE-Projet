@@ -13,10 +13,10 @@ code_insee_ban
 code_region_ban
 coordonnee_carthographie_x_ban
 coordonnee_carthographie_y_ban
-dperdition_enveloope
+deperdition_enveloppe
 qualite_isolation_enveloppe
 conso_5_usage_ep
-conso_5_usage_par_m3_ep
+conso_5_usage_par_m2_ep
 type_energie_n1
 cout_total_5_usages
 type_energie_principal_chauffage
