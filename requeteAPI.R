@@ -3,7 +3,7 @@ library(jsonlite)
 library(dplyr)
 
 # --- Paramètres inchangés ---
-code_departement = c("01", "03", "07", "15", "26", "38", "42", "43", "63", "69")
+code_departement = c("01")
 
 ls_base_url = c("https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines",
                 "https://data.ademe.fr/data-fair/api/v1/datasets/dpe02neuf/lines")
