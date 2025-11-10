@@ -7,12 +7,19 @@ library(dplyr)
 library(plotly)
 library(sf)
 library(shinydashboard)
+library(thematic)
+library(httr)
+library(jsonlite)
+library(shinyjs)
+library(shinyauthr)
+library(sodium)
+library(lubridate)
 
-#install.packages(c("shiny","leaflet","ggplot", "DT", "dplyr","ploty","bslib","sf","shinydashboard"))
+#install.packages(c("shiny","leaflet","ggplot", "DT", "dplyr","ploty","bslib","sf","shinydashboard","thematic","httr","jsonlite","shinyjs","shinyauthr","sodium","lubridate"))
 
 
 extract_data = function(){
-  df = read.csv("BaseDeDonnes01.csv")
+  df = read.csv("BaseDeDonnes.csv")
   return(df)
 }
 
@@ -42,267 +49,441 @@ filtre_map = function(df){
   return(df)
 }
 
+# Fonction pour récupérer les nouvelles données via API
+refresh_api = function(date_derniere_maj) {
+  code_departement = c("01")
+  
+  ls_base_url = c("https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines",
+                  "https://data.ademe.fr/data-fair/api/v1/datasets/dpe02neuf/lines")
+  
+  select_fields = "numero_dpe,date_etablissement_dpe,etiquette_dpe,type_batiment,periode_construction,surface_habitable_logement,classe_inertie_batiment,adresse_ban,code_postal_ban,code_insee_ban,code_region_ban,code_departement_ban,coordonnee_cartographique_x_ban,coordonnee_cartographique_y_ban,deperditions_enveloppe,qualite_isolation_enveloppe,conso_5_usages_ep,conso_5_usages_par_m2_ep,type_energie_n1,cout_total_5_usages,type_energie_principale_chauffage"
+  
+  date_debut = as.Date(date_derniere_maj)
+  date_fin = Sys.Date()
+  
+  MAX_SIZE = 10000 # Taille maximale de page
+  cpt = 0
+  
+  # Initialisation du DataFrame principal
+  df = data.frame(numero_dpe = character(), date_etablissement_dpe = character(), etiquette_dpe = character(),
+                  type_batiment = character(), periode_construction = character(), surface_habitable_logement = numeric(),
+                  classe_inertie_batiment = character(), adresse_ban = character(), code_postal_ban = character(),
+                  code_insee_ban = character(), code_region_ban = character(), code_departement_ban = character(), coordonnee_cartographique_x_ban = numeric(),
+                  coordonnee_cartographique_y_ban = numeric(), deperditions_enveloppe = numeric(),
+                  qualite_isolation_enveloppe = character(), conso_5_usages_ep = numeric(),
+                  conso_5_usages_par_m2_ep = numeric(), type_energie_n1 = character(),
+                  cout_total_5_usages = numeric(), type_energie_principale_chauffage = character(), stringsAsFactors = FALSE)
+  # --- Fin Paramètres inchangés ---
+  
+  
+  # Boucles principales
+  for (base_url in ls_base_url) {
+    for (code_dep in code_departement) {
+      while(date_debut<date_fin){
+        annee=year(date_debut)
+        mois=month(date_debut)
+        
+        if (mois<10){
+          date_debut = paste0(annee,"-0",mois,"-01")
+        }
+        else{
+          date_debut = paste0(annee,"-",mois,"-01")
+        }
+        
+        if (mois==12){
+          date_fin_mois = paste0(annee+1,"-01-01")
+        }
+        else if (mois+1<10){
+          date_fin_mois = paste0(annee,"-0",mois+1,"-01")
+        }
+        else{
+          date_fin_mois = paste0(annee,"-",mois+1,"-01")
+        }
+        
+        # Construction du query_string
+        query_string = paste0('code_departement_ban:', code_dep,
+                              ' AND date_etablissement_dpe:[', date_debut, ' TO ', date_fin_mois, ']')
+        
+        # Paramètres de la requête (incluant la page actuelle)
+        params = list(
+          size = MAX_SIZE,
+          select = select_fields,
+          qs = query_string
+        )
+        
+        # Exécution de la requête
+        response = GET(modify_url(base_url, query = params))
+        
+        temp_data = fromJSON(rawToChar(response$content), flatten = FALSE)
+        temp_df = temp_data$result
+        nb_rows = ifelse(is.null(nrow(temp_df)), 0, nrow(temp_df))
+        
+        print(paste0(date_debut," TO ",date_fin_mois," : ",nb_rows,"lignes suplémentaire"))
+        
+        # Ajout des données au DataFrame principal
+        if (!is.null(nrow(temp_df)) && nrow(temp_df) > 0) {
+          df = dplyr::bind_rows(df, temp_df)
+        }
+        
+        if (mois==12){
+          date_debut=paste0(annee+1,"-01-01")
+        }
+        else{
+          date_debut=paste0(annee,"-",mois+1,"-01")
+        }
+        
+        if (mois==12){
+          date_fin_mois=paste0(annee+1,"-02-01")
+        }
+        else{
+          date_fin_mois=paste0(annee,"-",mois+2,"-01")
+        }
+        
+        
+        Sys.sleep(0.1) # Pause entre les requêtes pour ne pas surcharger le serveur
+      }
+    }
+  }
+  df$`_score` = NULL
+  return(df)
+}
+
 table_data=extract_data()
 
-ui = navbarPage(
-  title = "DPE du département de l'Ain (01)",
+# Base d'utilisateurs
+user_base = tibble::tibble(
+  user = c("admin", "user"),
+  password = sapply(c("admin", "Timeo X Mommy"), sodium::password_store),
+  permissions = c("admin", "On le sait"),
+  name = c("Administrateur", "Utilisateur")
+)
 
-  # Premier onglet
-  tabPanel(
-    "Graphique",
-    h3("Analyse et Visualisation des Données DPE"),
-    sidebarLayout(
-      # Colonne de Gauche : Indicateurs
-      sidebarPanel(
-        width = 3,
-        h4("Indicateurs Clés", style = "font-weight: bold; margin-bottom: 20px;"),
-        
-        fluidRow(
-          valueBoxOutput("vbox_total_dpe", width = 12)
-        ),
-        tags$hr(),
-        
-        fluidRow(
-          valueBoxOutput("vbox_surface_moyenne", width = 12)
-        ),
-        tags$hr(),
-        
-        fluidRow(
-          valueBoxOutput("vbox_isolation_tres_bonne", width = 12)
-        )
-      ),
+ui = fluidPage(
+  shinyjs::useShinyjs(),
+  
+  theme = bs_theme(
+    version = 5,
+    bootswatch = "flatly"
+  ),
+  
+  tags$head(
+    tags$link(rel = "stylesheet", type = "text/css", href = "style.css")
+  ),
+  
+  # Module de login
+  shinyauthr::loginUI(
+    id = "login",
+    title = "Connexion - DPE Ain (01)",
+    user_title = "Nom d'utilisateur",
+    pass_title = "Mot de passe",
+    login_title = "Se connecter"
+  ),
+  
+  # Contenu caché jusqu'à connexion
+  shinyjs::hidden(
+    div(
+      id = "app_content",
       
-    # Colonne de Droite : Graphiques Plotly
-    mainPanel(
-      width = 9,
-      h4("Graphiques Interactifs Plotly"),
-      # Affichage des graphiques
-      plotlyOutput("plot_histogramme_conso"),
-      tags$br(),
-      plotlyOutput("plot_barres_etiquette"),
-      tags$br(),
-      checkboxInput("filter_outliers_cout", "Exclure les valeurs extrêmes", value = TRUE),
-      plotlyOutput("plot_boxplot_cout"),
-      tags$br(),
-      # Choix des variables pour le nuage de points
-      fluidRow(
-        column(6,
-               selectInput("scatter_x", "Axe X (Nuage de points) :", "")
-        ),
-        column(6,
-               selectInput("scatter_y", "Axe Y (Nuage de points) :", "")
-        )
-      ),
-      tags$h5(textOutput("coeff_cor_text"), style = "font-weight: bold; color: #FF6347; text-align: center;"),
-      tags$br(),
-      plotlyOutput("plot_nuage_points")
-      )
-    )
-  ),
-  
-  # Deuxième onglet
-  tabPanel(
-    "Cartographie", 
-    leafletOutput("ma_carte", height = "600px")
-  ),
-  
-  # Troisième onglet
-  tabPanel(
-    "Tableaux", 
-    h3("Tableaux des données"),
-    fluidRow(
-      column(6,
-             actionButton("refresh_data_api", 
-                          "Rafraîchir les données (API)",
-                          icon = icon("sync-alt"),
-                          class = "btn-warning")
-      ),
-      column(6, align = "right",
-             downloadButton("download_data", "Exporter en CSV", 
-                            icon = icon("download"),
-                            class = "btn-success")
-      )
-    ),
-    tags$br(),
-    uiOutput("message_refresh_api"),
-    tags$br(),
-    DT::DTOutput("data_table")
-  ),
-  
-  # Quatrième onglet
-  tabPanel(
-    "Filtre",
-    h3("Filtrer les données de l'application"),
-    fluidRow(
-      column(12, align = "right",
-             actionButton("appliquer_filtres", "Appliquer les filtres", icon = icon("filter"))
-      )
-    ),
-    fluidRow(
-      # Colonne de Gauche (Filtres Numériques & Dates)
-      column(6,
-             h4("Filtres Numériques & Dates"),
-             # 1. DATE (Dynamique)
-             uiOutput("date_dpe_ui"),
-             # 2. Surface (Dynamique)
-             uiOutput("surface_habitable_ui")
-      ),
-      
-      # Colonne de Droite (Filtres Catégoriels)
-      column(6,
-             h4("Filtres Catégoriels"),
-             uiOutput("etiquette_dpe_ui"),
-             uiOutput("type_batiment_ui"),
-             uiOutput("classe_inertie_ui"),
-             uiOutput("type_energie_n1_ui"),
-             uiOutput("type_chaffage_ui")
-      )
-    )
-  ),
-  
-  # Cinquième onglet
-  tabPanel(
-    "Contexte",
-    fluidRow(
-      # SECTION 1 : Présentation du projet
-      box(
-        width = 12,
-        solidHeader = TRUE,
-        status = "info",
-        title = tags$div(icon("info-circle"), "À propos du projet"),
-        fluidRow(
-          column(8,
-                 h4("Contexte : Sobriété Énergétique et DPE"),
-                 p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, 
-                 la sobriété énergétique est au cœur des préoccupations des Français."),
-                 p("Cette application analyse les Diagnostics de Performance Énergétique (DPE) 
-                 du département de l'Ain (01) pour comprendre l'impact des différentes 
-                 classes énergétiques sur les consommations électriques des logements."),
-                 tags$hr(),
-                 h4("Objectifs de l'application"),
-                 tags$ul(
-                   tags$li("Visualiser la répartition des étiquettes DPE dans le département"),
-                   tags$li("Identifier les passoires énergétiques (étiquettes F et G)"),
-                   tags$li("Analyser les facteurs influençant la performance énergétique"),
-                   tags$li("Cartographier les logements selon leur performance énergétique"),
-                   tags$li("Fournir des données exploitables pour la transition énergétique")
-                 )
+      navbarPage(
+        title = "DPE du département de l'Ain (01)",
+        
+        header = tags$div(
+          class = "navbar-header-right",
+          tags$label("Thème:", style = "margin-right: 5px; font-weight: bold; color: white;"),
+          tags$select(
+            id = "theme_choice",
+            onchange = "location.href='?theme=' + this.value;",
+            style = "padding: 5px; border-radius: 5px;",
+            tags$option(value = "flatly", selected = "selected", "Flatly"),
+            tags$option(value = "darkly", "Darkly"),
+            tags$option(value = "cosmo", "Cosmo"),
+            tags$option(value = "cerulean", "Cerulean")
           ),
-          column(4,
-                 tags$img(src = "https://www.soignolles14.fr/wp-content/uploads/2019/03/Logo-ENEDIS.png",
-                          width = "100%",
-                          style = "margin-top: 20px;"),
-                 tags$br(), tags$br(),
-                 tags$img(src = "https://upload.wikimedia.org/wikipedia/fr/thumb/0/0d/Logo_ADEME_2020.svg/1200px-Logo_ADEME_2020.svg.png",
-                          width = "80%",
-                          style = "margin-top: 20px;")
+          shinyauthr::logoutUI(id = "logout")
+      ),
+      # Premier onglet
+      tabPanel(
+        "Graphique",
+        h3("Analyse et Visualisation des Données DPE"),
+        sidebarLayout(
+          # Colonne de Gauche : Indicateurs
+          sidebarPanel(
+            width = 3,
+            h4("Indicateurs Clés", style = "font-weight: bold; margin-bottom: 20px;"),
+            
+            fluidRow(
+              valueBoxOutput("vbox_total_dpe", width = 12)
+            ),
+            tags$hr(),
+            
+            fluidRow(
+              valueBoxOutput("vbox_surface_moyenne", width = 12)
+            ),
+            tags$hr(),
+            
+            fluidRow(
+              valueBoxOutput("vbox_isolation_tres_bonne", width = 12)
+            )
+          ),
+          
+        # Colonne de Droite : Graphiques Plotly
+        mainPanel(
+          width = 9,
+          h4("Graphiques Interactifs Plotly"),
+          # Affichage des graphiques
+          fluidRow(
+            column(12, align = "right",
+                   downloadButton("download_histo", "Exporter en PNG", 
+                                  icon = icon("download"), class = "btn-sm btn-info")
+            )
+          ),
+          plotlyOutput("plot_histogramme_conso"),
+          tags$br(),
+          fluidRow(
+            column(12, align = "right",
+                   downloadButton("download_barres", "Exporter en PNG", 
+                                  icon = icon("download"), class = "btn-sm btn-info")
+            )
+          ),
+          plotlyOutput("plot_barres_etiquette"),
+          tags$br(),
+          fluidRow(
+            column(12, align = "right",
+                   downloadButton("download_boxplot", "Exporter en PNG", 
+                                  icon = icon("download"), class = "btn-sm btn-info")
+            )
+          ),
+          checkboxInput("filter_outliers_cout", "Exclure les valeurs extrêmes", value = TRUE),
+          plotlyOutput("plot_boxplot_cout"),
+          tags$br(),
+          # Choix des variables pour le nuage de points
+          fluidRow(
+            column(6,
+                   selectInput("scatter_x", "Axe X (Nuage de points) :", "")
+            ),
+            column(6,
+                   selectInput("scatter_y", "Axe Y (Nuage de points) :", "")
+            )
+          ),
+          tags$h5(textOutput("coeff_cor_text"), style = "font-weight: bold; color: #FF6347; text-align: center;"),
+          tags$br(),
+          fluidRow(
+            column(12, align = "right",
+                   downloadButton("download_scatter", "Exporter en PNG", 
+                                  icon = icon("download"), class = "btn-sm btn-info")
+            )
+          ),
+          plotlyOutput("plot_nuage_points")
           )
         )
-      )
-    ),
-    
-    fluidRow(
-      # SECTION 2 : Source des données
-      box(
-        width = 6,
-        solidHeader = TRUE,
-        status = "primary",
-        title = tags$div(icon("database"), "Source des Données"),
-        h5("Données ADEME - DPE France"),
-        p("Les données proviennent de l'Agence de l'Environnement et de la Maîtrise de l'Énergie (ADEME)."),
-        tags$ul(
-          tags$li(tags$b("Logements existants :"), 
-                  tags$a(href = "https://data.ademe.fr/datasets/dpe03existant/api-doc",
-                         target = "_blank", "DPE v2 - Logements existants")),
-          tags$li(tags$b("Logements neufs :"), 
-                  tags$a(href = "https://data.ademe.fr/datasets/dpe02neuf/api-doc",
-                         target = "_blank", "DPE v2 - Logements neufs"))
+      ),
+      
+      # Deuxième onglet
+      tabPanel(
+        "Cartographie", 
+        leafletOutput("ma_carte", height = "600px")
+      ),
+      
+      # Troisième onglet
+      tabPanel(
+        "Tableaux", 
+        h3("Tableaux des données"),
+        fluidRow(
+          column(6,
+                 actionButton("refresh_data_api", 
+                              "Rafraîchir les données (API)",
+                              icon = icon("sync-alt"),
+                              class = "btn-warning")
+          ),
+          column(6, align = "right",
+                 downloadButton("download_data", "Exporter en CSV", 
+                                icon = icon("download"),
+                                class = "btn-success")
+          )
         ),
-        tags$hr(),
-        h5("Périmètre de l'analyse"),
-        tags$ul(
-          tags$li(tags$b("Département :"), "Ain (01)"),
-          tags$li(tags$b("Période :"), textOutput("periode_data", inline = TRUE)),
-          tags$li(tags$b("Nombre de DPE :"), textOutput("nombre_total_dpe", inline = TRUE))
+        tags$br(),
+        uiOutput("message_refresh_api"),
+        tags$br(),
+        DT::DTOutput("data_table")
+      ),
+      
+      # Quatrième onglet
+      tabPanel(
+        "Filtre",
+        h3("Filtrer les données de l'application"),
+        fluidRow(
+          column(12, align = "right",
+                 actionButton("appliquer_filtres", "Appliquer les filtres", icon = icon("filter"))
+          )
+        ),
+        fluidRow(
+          # Colonne de Gauche (Filtres Numériques & Dates)
+          column(6,
+                 h4("Filtres Numériques & Dates"),
+                 # 1. DATE (Dynamique)
+                 uiOutput("date_dpe_ui"),
+                 # 2. Surface (Dynamique)
+                 uiOutput("surface_habitable_ui")
+          ),
+          
+          # Colonne de Droite (Filtres Catégoriels)
+          column(6,
+                 h4("Filtres Catégoriels"),
+                 uiOutput("etiquette_dpe_ui"),
+                 uiOutput("type_batiment_ui"),
+                 uiOutput("classe_inertie_ui"),
+                 uiOutput("type_energie_n1_ui"),
+                 uiOutput("type_chaffage_ui")
+          )
         )
       ),
       
-      # SECTION 3 : Comprendre les étiquettes DPE
-      box(
-        width = 6,
-        solidHeader = TRUE,
-        status = "warning",
-        title = tags$div(icon("certificate"), "Comprendre les Étiquettes DPE"),
-        h5("Classification énergétique"),
-        p("Le DPE classe les logements selon leur consommation énergétique annuelle :"),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #008000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "A"),
-          "≤ 70 kWh/m²/an - Très performant"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #50A000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "B"),
-          "71 à 110 kWh/m²/an - Performant"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #A0D000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "C"),
-          "111 à 180 kWh/m²/an - Assez performant"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #FFFF00; color: black; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "D"),
-          "181 à 250 kWh/m²/an - Peu performant"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #FFC000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "E"),
-          "251 à 330 kWh/m²/an - Énergivore"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #FF8000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "F"),
-          "331 à 420 kWh/m²/an - Très énergivore"
-        ),
-        tags$div(
-          style = "margin: 10px 0;",
-          tags$span(style = "background-color: #FF0000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "G"),
-          "> 420 kWh/m²/an - Passoire énergétique"
-        ),
-        tags$hr(),
-        tags$div(
-          class = "alert alert-danger",
-          role = "alert",
-          tags$b(icon("fire"), " Les passoires énergétiques (F et G)"),
-          "représentent un enjeu majeur de la transition énergétique."
-        )
-      )
-    ),
-
-    fluidRow(
-      # SECTION 4 : Fonctionnalités de l'application
-      box(
-        width = 12,
-        solidHeader = TRUE,
-        status = "primary",
-        title = tags$div(icon("star"), "Fonctionnalités de l'Application"),
+      # Cinquième onglet
+      tabPanel(
+        "Contexte",
         fluidRow(
-          column(3,
-                 h5(icon("chart-bar"), "Graphiques"),
-                 p("Visualisations interactives des données DPE avec Plotly")
+          # SECTION 1 : Présentation du projet
+          box(
+            width = 12,
+            solidHeader = TRUE,
+            status = "info",
+            title = tags$div(icon("info-circle"), "À propos du projet"),
+            fluidRow(
+              column(8,
+                     h4("Contexte : Sobriété Énergétique et DPE"),
+                     p("Avec l'accélération du changement climatique et la hausse des prix de l'énergie, 
+                     la sobriété énergétique est au cœur des préoccupations des Français."),
+                     p("Cette application analyse les Diagnostics de Performance Énergétique (DPE) 
+                     du département de l'Ain (01) pour comprendre l'impact des différentes 
+                     classes énergétiques sur les consommations électriques des logements."),
+                     tags$hr(),
+                     h4("Objectifs de l'application"),
+                     tags$ul(
+                       tags$li("Visualiser la répartition des étiquettes DPE dans le département"),
+                       tags$li("Identifier les passoires énergétiques (étiquettes F et G)"),
+                       tags$li("Analyser les facteurs influençant la performance énergétique"),
+                       tags$li("Cartographier les logements selon leur performance énergétique"),
+                       tags$li("Fournir des données exploitables pour la transition énergétique")
+                     )
+              ),
+              column(4,
+                     tags$img(src = "https://www.soignolles14.fr/wp-content/uploads/2019/03/Logo-ENEDIS.png",
+                              width = "100%",
+                              style = "margin-top: 20px;"),
+                     tags$br(), tags$br(),
+                     tags$img(src = "https://upload.wikimedia.org/wikipedia/fr/thumb/0/0d/Logo_ADEME_2020.svg/1200px-Logo_ADEME_2020.svg.png",
+                              width = "80%",
+                              style = "margin-top: 20px;")
+              )
+            )
+          )
+        ),
+        
+        fluidRow(
+          # SECTION 2 : Source des données
+          box(
+            width = 6,
+            solidHeader = TRUE,
+            status = "primary",
+            title = tags$div(icon("database"), "Source des Données"),
+            h5("Données ADEME - DPE France"),
+            p("Les données proviennent de l'Agence de l'Environnement et de la Maîtrise de l'Énergie (ADEME)."),
+            tags$ul(
+              tags$li(tags$b("Logements existants :"), 
+                      tags$a(href = "https://data.ademe.fr/datasets/dpe03existant/api-doc",
+                             target = "_blank", "DPE v2 - Logements existants")),
+              tags$li(tags$b("Logements neufs :"), 
+                      tags$a(href = "https://data.ademe.fr/datasets/dpe02neuf/api-doc",
+                             target = "_blank", "DPE v2 - Logements neufs"))
+            ),
+            tags$hr(),
+            h5("Périmètre de l'analyse"),
+            tags$ul(
+              tags$li(tags$b("Département :"), "Ain (01)"),
+              tags$li(tags$b("Période :"), textOutput("periode_data", inline = TRUE)),
+              tags$li(tags$b("Nombre de DPE :"), textOutput("nombre_total_dpe", inline = TRUE))
+            )
           ),
-          column(3,
-                 h5(icon("map-marked-alt"), "Cartographie"),
-                 p("Carte interactive des logements avec clustering")
-          ),
-          column(3,
-                 h5(icon("table"), "Tableaux"),
-                 p("Export CSV et filtres avancés sur les données")
-          ),
-          column(3,
-                 h5(icon("filter"), "Filtres"),
-                 p("Filtrage multi-critères pour analyses personnalisées")
+          
+          # SECTION 3 : Comprendre les étiquettes DPE
+          box(
+            width = 6,
+            solidHeader = TRUE,
+            status = "warning",
+            title = tags$div(icon("certificate"), "Comprendre les Étiquettes DPE"),
+            h5("Classification énergétique"),
+            p("Le DPE classe les logements selon leur consommation énergétique annuelle :"),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #008000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "A"),
+              "≤ 70 kWh/m²/an - Très performant"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #50A000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "B"),
+              "71 à 110 kWh/m²/an - Performant"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #A0D000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "C"),
+              "111 à 180 kWh/m²/an - Assez performant"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #FFFF00; color: black; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "D"),
+              "181 à 250 kWh/m²/an - Peu performant"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #FFC000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "E"),
+              "251 à 330 kWh/m²/an - Énergivore"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #FF8000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "F"),
+              "331 à 420 kWh/m²/an - Très énergivore"
+            ),
+            tags$div(
+              style = "margin: 10px 0;",
+              tags$span(style = "background-color: #FF0000; color: white; padding: 5px 10px; border-radius: 3px; margin-right: 5px;", "G"),
+              "> 420 kWh/m²/an - Passoire énergétique"
+            ),
+            tags$hr(),
+            tags$div(
+              class = "alert alert-danger",
+              role = "alert",
+              tags$b(icon("fire"), " Les passoires énergétiques (F et G)"),
+              "représentent un enjeu majeur de la transition énergétique."
+            )
+          )
+        ),
+    
+        fluidRow(
+          # SECTION 4 : Fonctionnalités de l'application
+          box(
+            width = 12,
+            solidHeader = TRUE,
+            status = "primary",
+            title = tags$div(icon("star"), "Fonctionnalités de l'Application"),
+            fluidRow(
+              column(3,
+                     h5(icon("chart-bar"), "Graphiques"),
+                     p("Visualisations interactives des données DPE avec Plotly")
+              ),
+              column(3,
+                     h5(icon("map-marked-alt"), "Cartographie"),
+                     p("Carte interactive des logements avec clustering")
+              ),
+              column(3,
+                     h5(icon("table"), "Tableaux"),
+                     p("Export CSV et filtres avancés sur les données")
+              ),
+              column(3,
+                     h5(icon("filter"), "Filtres"),
+                     p("Filtrage multi-critères pour analyses personnalisées")
+                )
+              )
+            )
           )
         )
       )
@@ -311,6 +492,40 @@ ui = navbarPage(
 )
 
 server = function(input, output, session) {
+  
+  observe({
+    query <- parseQueryString(session$clientData$url_search)
+    if (!is.null(query$theme)) {
+      new_theme <- bs_theme(version = 5, bootswatch = query$theme)
+      session$setCurrentTheme(new_theme)
+    }
+  })
+  
+  # Authentification
+  credentials <- shinyauthr::loginServer(
+    id = "login",
+    data = user_base,
+    user_col = user,
+    pwd_col = password,
+    sodium_hashed = TRUE,
+    log_out = reactive(logout_init())
+  )
+  
+  logout_init <- shinyauthr::logoutServer(
+    id = "logout",
+    active = reactive(credentials()$user_auth)
+  )
+  
+  # Afficher/masquer le contenu selon l'authentification
+  observe({
+    if (credentials()$user_auth) {
+      shinyjs::show(id = "app_content")
+      shinyjs::hide(id = "login")
+    } else {
+      shinyjs::hide(id = "app_content")
+      shinyjs::show(id = "login")
+    }
+  })
   
   rv = reactiveValues(data = table_data)
   
@@ -743,7 +958,140 @@ server = function(input, output, session) {
     format(nrow(rv$data), big.mark = " ")
   })
   
+  # Export graphique Histogramme
+  output$download_histo = downloadHandler(
+    filename = function() {
+      paste("histogramme_conso_", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      data_filtered = rv$data
+      p = ggplot(data_filtered, aes(x = conso_5_usages_par_m2_ep)) +
+        geom_histogram(bins = 30, fill = "#17a2b8", color = "white") +
+        labs(title = "Distribution de la Consommation Énergétique (EP/m²)",
+             x = "Consommation (kWhep/m²/an)",
+             y = "Fréquence") +
+        theme_minimal()
+      ggsave(file, plot = p, width = 10, height = 6, dpi = 300)
+    }
+  )
+  
+  # Export graphique Barres
+  output$download_barres = downloadHandler(
+    filename = function() {
+      paste("repartition_etiquettes_", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      data_filtered = rv$data
+      p = data_filtered %>%
+        count(etiquette_dpe) %>%
+        mutate(etiquette_dpe = factor(etiquette_dpe, levels = c("A", "B", "C", "D", "E", "F", "G", "Vierge"))) %>%
+        ggplot(aes(x = etiquette_dpe, y = n, fill = etiquette_dpe)) +
+        geom_bar(stat = "identity") +
+        labs(title = "Répartition par Étiquette DPE",
+             x = "Étiquette DPE",
+             y = "Nombre de DPE") +
+        theme_minimal()
+      ggsave(file, plot = p, width = 10, height = 6, dpi = 300)
+    }
+  )
+  
+  # Export graphique Boxplot
+  output$download_boxplot = downloadHandler(
+    filename = function() {
+      paste("boxplot_cout_", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      data_filtered = rv$data
+      
+      if(input$filter_outliers_cout) {
+        Q1 = quantile(data_filtered$cout_total_5_usages, 0.25, na.rm = TRUE)
+        Q3 = quantile(data_filtered$cout_total_5_usages, 0.75, na.rm = TRUE)
+        IQR = Q3 - Q1
+        data_filtered = data_filtered %>%
+          filter(cout_total_5_usages >= (Q1 - 1.5 * IQR) & 
+                   cout_total_5_usages <= (Q3 + 1.5 * IQR))
+      }
+      
+      p = ggplot(data_filtered, aes(y = cout_total_5_usages)) +
+        geom_boxplot(fill = "#ffc107", color = "#d39e00") +
+        labs(title = "Distribution du Coût Total des 5 Usages",
+             y = "Coût Total (€)") +
+        theme_minimal()
+      ggsave(file, plot = p, width = 10, height = 6, dpi = 300)
+    }
+  )
+  
+  # Export graphique Nuage de points
+  output$download_scatter = downloadHandler(
+    filename = function() {
+      paste("nuage_points_", input$scatter_x, "_", input$scatter_y, "_", Sys.Date(), ".png", sep = "")
+    },
+    content = function(file) {
+      req(input$scatter_x, input$scatter_y, input$scatter_x != "", input$scatter_y != "")
+      
+      data_filtered = rv$data
+      data_clean = data_filtered %>%
+        filter(is.finite(!!sym(input$scatter_x)) & 
+                 is.finite(!!sym(input$scatter_y)))
+      
+      p = ggplot(data_clean, aes(x = !!sym(input$scatter_x), 
+                                  y = !!sym(input$scatter_y))) +
+        geom_point(alpha = 0.5, size = 2, color = "#20c997") +
+        geom_smooth(method = "lm", se = FALSE, color = "#FF6347", 
+                    formula = y ~ x, linewidth = 1) +
+        labs(title = paste("Relation entre", input$scatter_x, "et", input$scatter_y),
+             x = input$scatter_x,
+             y = input$scatter_y) +
+        theme_minimal() +
+        theme(plot.title = element_text(hjust = 0.5, face = "bold"))
+      
+      ggsave(file, plot = p, width = 10, height = 6, dpi = 300)
+    }
+  )
+  
+  observeEvent(input$refresh_data_api, {
+    
+    showNotification(
+      "Récupération des nouvelles données via l'API ADEME en cours...",
+      type = "message",
+      duration = NULL,
+      id = "refresh_notif"
+    )
+    
+    shinyjs::disable("refresh_data_api")
+    
+    date_derniere <- max(as.Date(table_data$date_etablissement_dpe), na.rm = TRUE)
+    
+    result <- refresh_api(date_derniere)
+    
+    removeNotification(id = "refresh_notif")
+    
+    table_data = dplyr::bind_rows(table_data, result)
+    rv$data <- table_data
+    
+    showNotification(
+      paste0(result$nb_lignes, " nouvelles données ajoutées !"),
+      type = "message",
+      duration = 5
+    )
+    
+    shinyjs::enable("refresh_data_api")
+  })
+  
+  output$message_refresh_api <- renderUI({
+    date_derniere <- max(as.Date(table_data$date_etablissement_dpe), na.rm = TRUE)
+    
+    tags$div(
+      class = "alert alert-info",
+      role = "alert",
+      icon("info-circle"),
+      paste(" Dernière donnée dans la base :", format(date_derniere, "%d/%m/%Y"),
+            "| Cliquez sur 'Rafraîchir' pour récupérer les nouveaux DPE via l'API ADEME")
+    )
+  })
+  
 }
 
 # Run the application 
 shinyApp(ui = ui, server = server)
+
