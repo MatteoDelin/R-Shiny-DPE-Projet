@@ -331,7 +331,7 @@ h5 {
   position: absolute !important;
   right: 15px !important;
   top: 8px !important;
-  z-index: 1000 !important;
+  z-index: 10 !important;
   display: flex !important;
   gap: 15px !important;
   align-items: center !important;
@@ -380,3 +380,15 @@ h5 {
 .navbar-collapse {
   margin-right: 200px !important; /* Laisser de la place pour le header-right */
 }
+
+/* Alternative plus simple */
+.main-header .logo {
+  padding: 20px 15px !important;  /* Plus d'espace vertical */
+  height: auto !important;
+  min-height: 80px !important;
+}
+
+.main-sidebar {
+  margin-top: 30px !important;  /* Descendre la sidebar */
+}
+
