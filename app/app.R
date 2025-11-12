@@ -19,7 +19,7 @@ library(lubridate)
 
 
 extract_data = function(){
-  df = read.csv("BaseDeDonnes.csv")
+  df = read.csv("https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/data/dpe_clean.csv")
   
   # Convertie certaine variable dans leur bon type
   df$code_postal_ban = as.character(df$code_postal_ban)

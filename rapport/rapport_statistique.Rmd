@@ -50,7 +50,7 @@ library(readr)
 
 ```{r load_data, echo=FALSE}
 
-file_path <- "C:\\Users\\timeo\\Documents\\cours\\année 2\\r projet (r markdown et r shiny)\\test 2 projet shiny\\BaseDeDonnes.csv"
+file_path <- "https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/data/dpe_clean.csv"
 
 tryCatch({
   dpe_data <- read_csv(file_path)
