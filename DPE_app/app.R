@@ -167,8 +167,8 @@ table_data=extract_data()
 # Base d'utilisateurs
 user_base = tibble::tibble(
   user = c("admin", "user"),
-  password = sapply(c("admin", "Timeo X Mommy"), sodium::password_store),
-  permissions = c("admin", "On le sait"),
+  password = sapply(c("admin", "Python DASH > R Shiny"), sodium::password_store),
+  permissions = c("admin", "C'est juste la vérité"),
   name = c("Administrateur", "Utilisateur")
 )
 
@@ -186,6 +186,11 @@ ui = fluidPage(
       // Ajouter la nouvelle classe
       $('body').addClass('skin-' + skin);
     });
+  ")),
+    tags$style(HTML("
+    .main-header { height: 50px !important; }
+    .main-header .navbar { min-height: 50px !important; }
+    .main-header .logo { height: 50px !important; padding: 10px 15px !important; line-height:30px !important}
   "))
   ),
   
@@ -209,10 +214,8 @@ ui = fluidPage(
           title = "DPE du département de l'Ain (01)",
           tags$li(
             class = "dropdown",
-            style = "padding: 10px 15px; margin-top: 15px;",
             tags$label(
               "Thème:", 
-              style = "color: white; margin-right: 10px; font-weight: bold;"
             ),
             selectInput(
               inputId = "theme_selector",
@@ -232,12 +235,11 @@ ui = fluidPage(
                 "Jaune Clair" = "yellow-light"
               ),
               selected = "blue",
-              width = "150px"
             )
           ),
           tags$li(
             class = "dropdown",
-            style = "padding: 15px; margin-top: 15px;",
+            style = "margin-top:25px !important;",
             shinyauthr::logoutUI(id = "logout")
           )
         ),
@@ -415,11 +417,11 @@ ui = fluidPage(
                          )
                   ),
                   column(4,
-                         tags$img(src = "https://www.soignolles14.fr/wp-content/uploads/2019/03/Logo-ENEDIS.png",
+                         tags$img(src = "Logo-ENEDIS.png",
                                   width = "100%",
                                   style = "margin-top: 20px;"),
                          tags$br(), tags$br(),
-                         tags$img(src = "https://upload.wikimedia.org/wikipedia/fr/thumb/0/0d/Logo_ADEME_2020.svg/1200px-Logo_ADEME_2020.svg.png",
+                         tags$img(src = "Logo-ADEME.png",
                                   width = "80%",
                                   style = "margin-top: 20px;")
                   )
@@ -803,7 +805,7 @@ server = function(input, output, session) {
   
   # KPI 1 : Total DPE
   output$vbox_total_dpe = renderValueBox({
-    data_kpi = rv$data  # CORRECTION : enlever les ()
+    data_kpi = rv$data
     req(data_kpi)
     
     total = format(nrow(data_kpi), big.mark = " ")
@@ -811,7 +813,7 @@ server = function(input, output, session) {
     valueBox(
       value = total,
       subtitle = "Logements DPE",
-      icon = icon("home"),
+      icon = icon("home", style ="font-size: 50px;"),
       color = "blue"
     )
   })
@@ -826,7 +828,7 @@ server = function(input, output, session) {
     valueBox(
       value = paste(surface_moy, "m²"),
       subtitle = "Surface moyenne",
-      icon = icon("ruler-combined"),
+      icon = icon("ruler-combined", style ="font-size: 50px;"),
       color = "yellow"
     )
   })
@@ -847,7 +849,7 @@ server = function(input, output, session) {
     valueBox(
       value = paste0(pourcentage, "%"),
       subtitle = "Isolation très bonne",
-      icon = icon("shield-alt"),
+      icon = icon("shield-alt", style ="font-size: 50px;"),
       color = "green"
     )
   })

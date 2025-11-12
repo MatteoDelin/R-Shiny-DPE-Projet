@@ -1,6 +1,3 @@
-/* ========================================
-   COULEURS PRINCIPALES
-   ======================================== */
 :root {
   --primary-color: #3498db;
   --secondary-color: #2ecc71;
@@ -9,9 +6,7 @@
   --info-color: #17a2b8;
 }
 
-/* ========================================
-   LOGIN PAGE
-   ======================================== */
+
 #login {
   max-width: 400px;
   margin: 100px auto;
@@ -27,9 +22,7 @@
   margin-bottom: 30px;
 }
 
-/* ========================================
-   NAVBAR
-   ======================================== */
+
 .navbar {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
@@ -51,9 +44,7 @@
   background-color: rgba(255,255,255,0.1) !important;
 }
 
-/* ========================================
-   BOXES ET CARDS
-   ======================================== */
+
 .box {
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.08);
@@ -70,9 +61,7 @@
   border-radius: 10px 10px 0 0;
 }
 
-/* ========================================
-   VALUE BOXES (KPI)
-   ======================================== */
+
 .small-box {
   border-radius: 10px;
   box-shadow: 0 3px 12px rgba(0,0,0,0.1);
@@ -100,16 +89,14 @@
 }
 
 .small-box .icon {
-  font-size: 70px;
+  font-size: 50px;
   opacity: 0.3;
   position: absolute;
   right: 15px;
   top: 15px;
 }
 
-/* ========================================
-   BOUTONS
-   ======================================== */
+
 .btn {
   border-radius: 6px;
   transition: all 0.3s;
@@ -147,9 +134,7 @@
   border: none;
 }
 
-/* ========================================
-   GRAPHIQUES PLOTLY
-   ======================================== */
+
 .plotly {
   border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.05);
@@ -158,9 +143,7 @@
   margin-bottom: 20px;
 }
 
-/* ========================================
-   TABLEAUX
-   ======================================== */
+
 .dataTables_wrapper {
   padding: 20px;
   background: white;
@@ -190,9 +173,7 @@ table.dataTable tbody tr:hover {
   background-color: #f8f9fa;
 }
 
-/* ========================================
-   INPUTS ET FORMULAIRES
-   ======================================== */
+
 .form-control {
   border-radius: 6px;
   border: 1px solid #ddd;
@@ -208,7 +189,6 @@ table.dataTable tbody tr:hover {
   border-radius: 6px !important;
 }
 
-/* Sliders */
 .irs--shiny .irs-bar {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
@@ -218,17 +198,13 @@ table.dataTable tbody tr:hover {
   background: white;
 }
 
-/* ========================================
-   CARTE LEAFLET
-   ======================================== */
+
 .leaflet-container {
   border-radius: 10px;
   box-shadow: 0 4px 15px rgba(0,0,0,0.1);
 }
 
-/* ========================================
-   ALERTS ET NOTIFICATIONS
-   ======================================== */
+
 .alert {
   border-radius: 8px;
   border: none;
@@ -250,9 +226,7 @@ table.dataTable tbody tr:hover {
   color: #27ae60;
 }
 
-/* ========================================
-   TITRES ET TEXTES
-   ======================================== */
+
 h3 {
   color: #2c3e50;
   font-weight: 600;
@@ -269,9 +243,6 @@ h5 {
   font-weight: 500;
 }
 
-/* ========================================
-   RESPONSIVE
-   ======================================== */
 @media (max-width: 768px) {
   .navbar-brand {
     font-size: 1rem !important;
@@ -286,9 +257,6 @@ h5 {
   }
 }
 
-/* ========================================
-   ANIMATIONS
-   ======================================== */
 @keyframes fadeIn {
   from {
     opacity: 0;
@@ -304,9 +272,6 @@ h5 {
   animation: fadeIn 0.5s ease-in-out;
 }
 
-/* ========================================
-   SCROLLBAR PERSONNALISÉE
-   ======================================== */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -326,7 +291,6 @@ h5 {
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
 
-/* Style pour le header avec logout et thème */
 .navbar-header-right {
   position: absolute !important;
   right: 15px !important;
@@ -351,7 +315,6 @@ h5 {
   cursor: pointer !important;
 }
 
-/* S'assurer que le logout est bien stylé */
 #logout {
   margin: 0 !important;
   display: inline-block !important;
@@ -370,25 +333,5 @@ h5 {
 #logout button:hover {
   transform: scale(1.05) !important;
   box-shadow: 0 4px 12px rgba(231, 76, 60, 0.3) !important;
-}
-
-/* Éviter que la navbar colle trop à gauche */
-.navbar-header {
-  width: 100% !important;
-}
-
-.navbar-collapse {
-  margin-right: 200px !important; /* Laisser de la place pour le header-right */
-}
-
-/* Alternative plus simple */
-.main-header .logo {
-  padding: 20px 15px !important;  /* Plus d'espace vertical */
-  height: auto !important;
-  min-height: 80px !important;
-}
-
-.main-sidebar {
-  margin-top: 30px !important;  /* Descendre la sidebar */
 }
 
