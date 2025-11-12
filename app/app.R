@@ -176,7 +176,7 @@ ui = fluidPage(
   shinyjs::useShinyjs(),
 
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
+    tags$link(rel = "stylesheet", type = "text/css", href = "https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/app/www/style.css"),
     tags$script(HTML("
     Shiny.addCustomMessageHandler('change_skin', function(skin) {
       // Enlever toutes les classes skin-*
@@ -418,11 +418,11 @@ ui = fluidPage(
                          )
                   ),
                   column(4,
-                         tags$img(src = "Logo-ENEDIS.png",
+                         tags$img(src = "https://github.com/MatteoDelin/R-Shiny-DPE-Projet/blob/main/app/www/Logo-ENEDIS.png?raw=true",
                                   width = "100%",
                                   style = "margin-top: 20px;"),
                          tags$br(), tags$br(),
-                         tags$img(src = "Logo-ADEME.png",
+                         tags$img(src = "https://github.com/MatteoDelin/R-Shiny-DPE-Projet/blob/main/app/www/Logo-ADEME.png?raw=true",
                                   width = "80%",
                                   style = "margin-top: 20px;")
                   )
