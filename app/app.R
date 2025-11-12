@@ -190,7 +190,8 @@ ui = fluidPage(
     tags$style(HTML("
     .main-header { height: 50px !important; }
     .main-header .navbar { min-height: 50px !important; }
-    .main-header .logo { height: 50px !important; padding: 10px 15px !important; line-height:30px !important}
+    .main-header .logo { height: 80px !important; padding: 10px 15px !important; line-height:30px !important}
+    .left-side, .main-sidebar {margin-top:30px !important}
   "))
   ),
   

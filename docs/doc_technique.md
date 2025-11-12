@@ -3,58 +3,21 @@
 
 ---
 
-## 🏗️ Architecture de l'Application
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    INTERFACE UTILISATEUR                     │
-│              (Shiny UI - dashboardPage)                     │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │                             │
-┌───────▼────────┐           ┌────────▼────────┐
-│  Authentification│           │  Contenu Principal│
-│  (shinyauthr)   │           │  (dashboardBody) │
-└───────┬────────┘           └────────┬────────┘
-        │                             │
-        │              ┌──────────────┴──────────────┐
-        │              │                             │
-        │     ┌────────▼────────┐          ┌────────▼────────┐
-        │     │   SERVEUR R     │          │   DATA LAYER    │
-        │     │  (Réactivité)   │◄────────►│  (reactiveValues)│
-        │     └────────┬────────┘          └────────┬────────┘
-        │              │                            │
-        │              │                   ┌────────▼────────┐
-        │              │                   │  BaseDeDonnes.csv│
-        │              │                   └────────┬────────┘
-        │              │                            │
-        └──────────────┼────────────────────────────┘
-                       │
-        ┌──────────────┴──────────────┐
-        │                             │
-┌───────▼────────┐           ┌────────▼────────┐
-│   API ADEME    │           │  Leaflet / SF   │
-│  (refresh_api) │           │  (Géospatial)   │
-└────────────────┘           └─────────────────┘
-```
-
 ### **Composants Principaux**
 
 1. **UI (Interface)** : dashboardPage avec header, sidebar, body
 2. **Serveur** : logique réactive et gestion des événements
 3. **Couche Data** : `reactiveValues()` pour stockage temporaire
-4. **Sources de données** : CSV local + API ADEME
+4. **Sources de données** : CSV + API ADEME
 5. **Modules externes** : authentification, cartographie, visualisation
 
 ---
 
-## 📦 Installation et Configuration
+## Installation et Configuration
 
 ### **Prérequis Système**
 - **R** : version ≥ 4.0.0
 - **RStudio** : version recommandée ≥ 2023.06.0
-- **Système d'exploitation** : Windows, macOS, Linux
 
 ### **Installation des Packages**
 
@@ -86,14 +49,19 @@ install.packages(c(
 ```
 projet_dpe_ain/
 │
-├── app.R                    # Application principale
-├── BaseDeDonnes.csv         # Données DPE locales
-├── www/                     # Ressources statiques
-│   └── style.css            # Charte graphique CSS
+├── app/                              # Code source de l’application Shiny
+│   ├── app.R                         # Fichier principal Shiny (ou ui.R + server.R)
+│   ├── www/                          # Ressources statiques (images, icônes)
+│   │   ├── logo.png
+│   │   └── icons/
+│   └── data/                         # Données locales accessibles à l’app
+│       └── dpe_clean.csv
+|
+├── docs/                             # Documentation du projet
+│   ├── doc_technique.md              # Documentation technique (2 pages max)
+│   └── doc_fonctionnelle.md          # Documentation fonctionnelle (2 pages max)
 │
-├── README.md                # Présentation du projet
-├── doc_fonctionnelle.md     # Documentation utilisateur
-└── doc_technique.md         # Documentation développeur
+└── README.md                         # Présentation du projet
 ```
 
 ### **Fichier de Données Requis**
@@ -109,7 +77,7 @@ Le fichier `BaseDeDonnes.csv` doit contenir au minimum ces colonnes :
 
 ---
 
-## 🚀 Lancement de l'Application
+## Lancement de l'Application
 
 ### **En Local (Développement)**
 
@@ -126,44 +94,21 @@ shiny::runApp("chemin/vers/app.R")
 
 ### **Déploiement sur shinyapps.io**
 
-1. **Installer rsconnect** :
-```r
-install.packages("rsconnect")
-```
-
-2. **Configurer le compte** :
-```r
-rsconnect::setAccountInfo(
-  name = "votre_compte",
-  token = "votre_token",
-  secret = "votre_secret"
-)
-```
-
-3. **Déployer** :
-```r
-rsconnect::deployApp(
-  appDir = "chemin/vers/projet",
-  appName = "dpe-ain-01",
-  forceUpdate = TRUE
-)
-```
-
-4. **URL de l'application** : `https://votre_compte.shinyapps.io/dpe-ain-01/`
+**URL de l'application** : `https://votre_compte.shinyapps.io/dpe-ain-01/`
 
 ---
 
-## 🔧 Architecture Technique Détaillée
+## Architecture Technique Détaillée
 
 ### **1. Authentification (shinyauthr)**
 
 **Base d'utilisateurs** :
 ```r
 user_base = tibble(
-  user = c("admin", "user"),
-  password = sapply(c("admin", "Timeo X Mommy"), sodium::password_store),
-  permissions = c("admin", "On le sait"),
-  name = c("Administrateur", "Utilisateur")
+  user = c("admin"),
+  password = sapply(c("admin"), sodium::password_store),
+  permissions = c("admin"),
+  name = c("Administrateur"")
 )
 ```
 
@@ -275,32 +220,7 @@ output$plot_histogramme_conso = renderPlotly({
 
 ---
 
-### **6. Gestion des Thèmes (JavaScript)**
-
-**Sélecteur dans le header** :
-```r
-selectInput("theme_selector", ...)
-```
-
-**Handler JavaScript personnalisé** :
-```javascript
-Shiny.addCustomMessageHandler('change_skin', function(skin) {
-  $('body').removeClass(/\bskin-\S+/g);  // Retirer ancien thème
-  $('body').addClass('skin-' + skin);    // Ajouter nouveau
-});
-```
-
-**Déclenchement côté serveur** :
-```r
-observeEvent(input$theme_selector, {
-  session$sendCustomMessage(type = "change_skin", 
-                            message = input$theme_selector)
-})
-```
-
----
-
-## 📊 Calculs Statistiques
+## Calculs Statistiques
 
 ### **Coefficient de Corrélation**
 ```r
@@ -328,7 +248,7 @@ if(input$filter_outliers_cout) {
 
 ---
 
-## 🎨 Charte Graphique (CSS)
+## Charte Graphique (CSS)
 
 **Fichier** : `www/style.css`
 
@@ -347,56 +267,7 @@ tags$head(
 
 ---
 
-## 🔒 Sécurité
-
-### **Hachage des Mots de Passe**
-- Utilisation de `sodium::password_store()` (Argon2)
-- Jamais de stockage en clair
-
-### **Validation des Entrées**
-- `req()` pour vérifier les inputs non NULL
-- Filtrage avec `dplyr::filter()` pour éviter les injections
-
-### **Gestion des Sessions**
-- Déconnexion automatique via `logoutServer()`
-- Masquage du contenu avec `shinyjs::hide()`
-
----
-
-## ⚡ Performance
-
-### **Optimisations Appliquées**
-1. **Lazy Loading** : graphiques rendus uniquement si onglet actif
-2. **Filtrage en amont** : réduction des données avant visualisation
-3. **Cache réactif** : `reactiveValues()` évite les recalculs
-4. **Pagination** : tableaux avec `pageLength = 25`
-
-### **Limitations Connues**
-- **Volume max** : ~100 000 lignes (limite shinyapps.io gratuit)
-- **Timeout API** : 10 secondes par requête
-- **Mémoire** : 1 GB sur shinyapps.io
-
----
-
-## 🐛 Debugging
-
-### **Logs dans la Console**
-```r
-print(paste0("Filtrage : ", nrow(data), " lignes"))
-```
-
-### **Messages de Notification**
-```r
-showNotification("Message", type = "message", duration = 5)
-```
-
-### **Breakpoints RStudio**
-- Cliquer sur la marge gauche de l'éditeur
-- Lancer en mode debug : `runApp(launch.browser = FALSE)`
-
----
-
-## 🧪 Tests
+## Tests
 
 ### **Tests Manuels Recommandés**
 1. Authentification avec bons/mauvais identifiants
@@ -408,7 +279,7 @@ showNotification("Message", type = "message", duration = 5)
 
 ---
 
-## 📚 Ressources et Références
+## Ressources et Références
 
 - **Shiny** : https://shiny.posit.co/
 - **Leaflet pour R** : https://rstudio.github.io/leaflet/
@@ -418,26 +289,6 @@ showNotification("Message", type = "message", duration = 5)
 
 ---
 
-## 🔄 Maintenance
-
-### **Mise à Jour de l'Application**
-1. Modifier `app.R`
-2. Tester en local
-3. Redéployer sur shinyapps.io
-
-### **Ajout de Nouvelles Fonctionnalités**
-1. Créer un nouvel onglet dans `tabItems()`
-2. Ajouter le `menuItem()` correspondant
-3. Implémenter les outputs dans le serveur
-
-### **Monitoring**
-- Consulter les logs sur shinyapps.io
-- Vérifier les temps de chargement
-- Analyser les erreurs utilisateurs
-
----
-
 **Version** : 1.0  
 **Dernière mise à jour** : Novembre 2025  
-**Développeurs** : GreenTech Solutions  
-**Contact technique** : Repository GitHub
+**Développeurs** : Delin Mattéo ; Margerand Timéo 
