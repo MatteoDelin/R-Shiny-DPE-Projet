@@ -1,7 +1,7 @@
 # Documentation Technique
 ## Application d'Analyse des DPE du Département de l'Ain (01)
 
----
+----
 
 ### **Composants Principaux**
 
@@ -11,7 +11,7 @@
 4. **Sources de données** : CSV + API ADEME
 5. **Modules externes** : authentification, cartographie, visualisation
 
----
+----
 
 ## Installation et Configuration
 

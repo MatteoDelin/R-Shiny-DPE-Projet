@@ -37,7 +37,7 @@ Avec l'accélération du changement climatique et la hausse des prix de l'énerg
 
 ### Source des Données
 
-Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maîtrise de l'Énergie) :
+Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maîtrise de l'Énergie) : 
 - [API DPE v2 - Logements existants](https://data.ademe.fr/datasets/dpe-v2-logements-existants)
 - [API DPE v2 - Logements neufs](https://data.ademe.fr/datasets/dpe-v2-logements-neufs)
 
@@ -71,7 +71,7 @@ Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maî
 ## Démo
 
 ### Application en Ligne
-**URL de déploiement** : `https://matteodelin.shinyapps.io/appdpe/`
+**URL de déploiement** : https://matteodelin.shinyapps.io/appdpe/
 
 ### Vidéo de Démonstration
 **YouTube** : https://youtu.be/rHr7DwY366s
@@ -83,7 +83,7 @@ Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maî
 ├── app/                              # Code source de l’application Shiny
 │   ├── app.R                         # Fichier principal Shiny
 │   ├── www/                          
-│   │   ├── logo-ADEME.png
+│   │   ├── logo-ENEDIS.png
 │   │   ├── logo-ADEME.png
 │   │   └── style.css
 |

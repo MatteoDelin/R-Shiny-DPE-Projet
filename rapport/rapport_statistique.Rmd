@@ -33,7 +33,7 @@ params:
 ```{r setup, include=FALSE, echo=FALSE}
 # configuration du chunk
 # include=FALSE : ce chunk et ses résultats ne seront pas visibles dans le rapport final
-# echo=FALSE : le code R ne sera pas affiché (uniquement les résultats)
+# echo=FALSE : le code R ne sera pas affiché (uniquement les résultats) 
 
 # Installation des paquets requis (commenté pour éviter de réinstaller à chaque knit)
 # Décommentez uniquement lors de la première utilisation

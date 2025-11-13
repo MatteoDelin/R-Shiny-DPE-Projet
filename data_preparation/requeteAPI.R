@@ -2,6 +2,8 @@ library(httr)
 library(jsonlite)
 library(dplyr)
 
+install.packages(c("httr","jsonlite","dplyr"))
+
 refresh_api = function(date_derniere_maj) {
   code_departement = c("01")
   
