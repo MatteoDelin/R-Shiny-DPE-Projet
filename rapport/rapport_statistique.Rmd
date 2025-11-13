@@ -1,74 +1,99 @@
 ---
 title: "Analyse des DPE dans l'Ain (01)"
 author: "Rapport exploratoire"
-date: "`r Sys.Date()`"
+date: "`r Sys.Date()`"  # Génère automatiquement la date du jour
 output:
   html_document:
-    theme: journal
-    number_sections: true
+    theme: journal  # Thème visuel pour le HTML
+    number_sections: true  # Numérotation automatique des sections
 params:
+  # paramètres personnalisés : permettent de filtrer les données avant génération du rapport
+  
+  # Filtre par code postal : l'utilisateur peut entrer un ou plusieurs codes postaux
+  # Format : "code postal" pour un seul code, ou "code postal, code postal,..." pour plusieurs
   code_postal:
     label: "Code Postal"
-    value: "Tous"
-    input: text
+    value: "Tous"  # Valeur par défaut : toutes les valeurs
+    input: text  # Type de saisie : texte libre (l'utilisateur tape lui même les codes postaux qui l'intéressent)
+
+  # Filtre par type de logement : menu déroulant avec 3 choix possibles
   type_logement:
     label: "Type de Logement"
-    value: "Tous"
-    input: select
-    choices: ["Tous", "Neuf", "Existant"]
+    value: "Tous"  # Valeur par défaut : tous les types inclus
+    input: select  # Type de saisie : liste déroulante
+    choices: ["Tous", "Neuf", "Existant"]  # Options disponibles
 ---
 
 # Études statistiques simples et KPI sur les DPE dans l'Ain
 
 **Filtres appliqués :**
 
-- **Code Postal** : `r params$code_postal`
-- **Type de Logement** : `r params$type_logement`
+- **Code Postal** : `r params$code_postal` 
+ <!-- Affiche le code postal choisi par l'utilisateur -->
+- **Type de Logement** : `r params$type_logement`  
+ <!-- Affiche le type de logement choisi -->
 
 ---
 
 ```{r setup, include=FALSE, echo=FALSE}
-# Installation des paquets requis
+# configuration du chunk
+# include=FALSE : ce chunk et ses résultats ne seront pas visibles dans le rapport final
+# echo=FALSE : le code R ne sera pas affiché (uniquement les résultats)
+
+# Installation des paquets requis (commenté pour éviter de réinstaller à chaque knit)
+# Décommentez uniquement lors de la première utilisation
 #install.packages(c("knitr", "gt", "rmarkdown", "ggplot2", "dplyr", "readr"), 
 #                 repos = "https://cloud.r-project.org")
 
-# Définir les options globales des chunks
-# echo=FALSE signifie que le code ne sera pas montré dans le HTML final
-# warning=FALSE et message=FALSE cachent les messages de R
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+# Définir les options par défaut pour TOUS les chunks du document
+knitr::opts_chunk$set(
+  echo = FALSE,      # Par défaut, masquer le code R dans le rapport
+  warning = FALSE,   # Masquer les avertissements R
+  message = FALSE    # Masquer les messages de chargement de packages
+)
 ```
 
 ```{r libraries, echo=FALSE}
-# Chargement des bibliothèques
-library(knitr)
-library(gt)
-library(rmarkdown)
+# chargement des bibliothèques
+
+library(knitr)      
+library(gt)         
+library(rmarkdown)  
 library(ggplot2)
 library(dplyr)
 library(readr)
 ```
 
 ```{r load_data, echo=FALSE}
+# chargement des données
+# Importe le fichier CSV depuis GitHub
 
+# Définition du chemin vers le fichier de données
 file_path <- "https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/data/dpe_clean.csv"
 
+# Tentative de lecture du fichier avec gestion d'erreur
 tryCatch({
-  dpe_data <- read_csv(file_path)
+  dpe_data <- read_csv(file_path)  # Lecture du CSV et création de dpe_data (dataframe qui contiendra les données)
 })
 ```
 
 ```{r nettoyage}
-# Conversion des colonnes numériques qui ont pu être lues comme 'character'
+# nettoyage des données
+# Filtre, transforme et prépare les données pour l'analyse
+
+#Conversion des colonnes character en numerique (données quantitatives) 
 dpe_data$conso_5_usages_par_m2_ep <- as.numeric(dpe_data$conso_5_usages_par_m2_ep)
 dpe_data$surface_habitable_logement <- as.numeric(dpe_data$surface_habitable_logement)
 
-dpe_clean <- dpe_data %>%
-  # Sélection des colonnes (dplyr) - AJOUT code_postal_ban et type_dpe
+# nettoyage avec dplyr
+dpe_clean <- dpe_data %>% # applique toutes les lignes suivantes à dpe_data
+  # Sélection uniquement des colonnes utiles pour l'analyse
   select(etiquette_dpe, type_batiment, surface_habitable_logement, 
          conso_5_usages_par_m2_ep, type_energie_principale_chauffage,
          code_postal_ban, type_dpe) %>%
   
-  # Filtrage (dplyr)
+  # Filtrage des valeurs manquantes (NA)
+  # On garde uniquement les lignes avec toutes les informations complètes
   filter(
     !is.na(etiquette_dpe),
     !is.na(conso_5_usages_par_m2_ep),
@@ -78,56 +103,73 @@ dpe_clean <- dpe_data %>%
     !is.na(type_dpe)
   ) %>%
   
-  # Filtrage des consommations (dplyr)
+  # Filtrage des consommations aberrantes
+  # On garde uniquement les valeurs entre 0 et 1000 kWh/m²/an
   filter(conso_5_usages_par_m2_ep > 0 & conso_5_usages_par_m2_ep < 1000) %>%
   
-  # Assurer que les étiquettes vides sont aussi exclues
+  # Exclusion des étiquettes vides (chaînes de caractères vides)
   filter(etiquette_dpe != "") %>%
   
-  # Filtrer uniquement "existant" et "neuf" dans type_dpe
+  # Filtrage des types de DPE valides : uniquement "neuf" et "existant"
   filter(type_dpe %in% c("existant", "neuf")) %>%
   
-  # Ordonnancement (dplyr)
+  # Transformation des variables en facteurs (catégories ordonnées)
   mutate(
+    # Ordre des étiquettes DPE de A (meilleur) à G (pire)
     etiquette_dpe = factor(etiquette_dpe, levels = c("A", "B", "C", "D", "E", "F", "G")),
+    
+    # Conversion en facteurs simples
     type_batiment = as.factor(type_batiment),
     type_energie_principale_chauffage = as.factor(type_energie_principale_chauffage),
+    
+    # Conversion du code postal en caractère (pour éviter les problèmes de tri)
     code_postal_ban = as.character(code_postal_ban),
+    
+    # Renommage des valeurs de type_dpe avec des labels plus clairs
     type_dpe = factor(type_dpe, levels = c("neuf", "existant"), labels = c("Neuf", "Existant"))
   )
 
-# APPLICATION DES FILTRES SELON LES PARAMÈTRES
+
+# Filtre par code postal (si l'utilisateur n'a pas choisi "Tous")
 if (params$code_postal != "Tous") {
   dpe_clean <- dpe_clean %>%
     filter(code_postal_ban == params$code_postal)
 }
 
+# Filtre par type de logement (si l'utilisateur n'a pas choisi "Tous")
 if (params$type_logement != "Tous") {
   dpe_clean <- dpe_clean %>%
     filter(type_dpe == params$type_logement)
 }
 
-# Filtrage pour le top des énergies (dplyr)
-top_energies <- dpe_clean %>%
-  count(type_energie_principale_chauffage, sort = TRUE) %>%
-  filter(n > (nrow(dpe_clean) * 0.01)) %>%
-  pull(type_energie_principale_chauffage)
+# On garde uniquement les types d'énergie représentant plus de 1% des données
+# pour éviter d'afficher trop de catégories dans les graphiques
 
+# Comptage des occurrences de chaque type d'énergie
+top_energies <- dpe_clean %>%
+  count(type_energie_principale_chauffage, sort = TRUE) %>%  # Tri par ordre décroissant
+  filter(n > (nrow(dpe_clean) * 0.01)) %>%  # Garde uniquement si > 1% du total
+  pull(type_energie_principale_chauffage)  # Extrait les noms des énergies
+
+# Création d'un dataframe filtré avec uniquement les énergies principales
 dpe_clean_top_energies <- dpe_clean %>%
   filter(type_energie_principale_chauffage %in% top_energies)
 ```
 
 ```{r statistiques KPI}
-# 1. Calculer les statistiques avec dplyr
+# Calcule et affiche un tableau récapitulatif des principales statistiques
+
+# Calcul des statistiques descriptives
 summary_stats <- dpe_clean %>%
   summarise(
-    N = n(),
-    Mean_Conso = mean(conso_5_usages_par_m2_ep, na.rm = TRUE),
-    Median_Conso = median(conso_5_usages_par_m2_ep, na.rm = TRUE),
-    Mean_Surface = mean(surface_habitable_logement, na.rm = TRUE)
+    N = n(),  # Nombre total de logements après filtrage
+    Mean_Conso = mean(conso_5_usages_par_m2_ep, na.rm = TRUE),  # Consommation moyenne
+    Median_Conso = median(conso_5_usages_par_m2_ep, na.rm = TRUE),  # Consommation médiane
+    Mean_Surface = mean(surface_habitable_logement, na.rm = TRUE)  # Surface moyenne
   )
 
-# 2. Créer le data.frame pour GT (en R base, sans tidyr::gather)
+# Création d'un dataframe pour le tableau GT
+# Structure : une colonne "Indicateur" (nom de chaque ligne) et une colonne "Valeur" (résultat)
 kpi_df <- data.frame(
   Indicateur = c("Nombre de DPE valides",
                  "Consommation moyenne (kWh/m²/an)",
@@ -139,35 +181,39 @@ kpi_df <- data.frame(
              summary_stats$Mean_Surface)
 )
 
-# 3. Affichage avec gt (autorisé)
+# Affichage du tableau
 kpi_df %>%
-  gt() %>%
+  gt() %>%  # Conversion d dataframe kpi_df en objet GT
   tab_header(
-    title = "Indicateurs Clés de Performance sur les DPE de l'Ain",
+    title = "Indicateurs Clés de Performance sur les DPE de l'Ain"
   ) %>%
+  # Formatage des nombres : 1 seule décimale et séparateur d'espace pour les milliers
   fmt_number(
     columns = Valeur,
     decimals = 1,
     use_seps = TRUE,
-    sep_mark = " ",
-    dec_mark = ","
+    sep_mark = " ",  # Séparateur des milliers (exemple : 1 234.5)
+    dec_mark = ","   # Séparateur des décimales :","
   )
 ```
 
 ```{r Distribution des DPE par classes énergétiques}
+# Premier graphique: montre le nombre de logements par classe énergétique (A, B, C, D, E, F, G)
+
 ggplot(dpe_clean, aes(x = etiquette_dpe, fill = etiquette_dpe)) +
-  geom_bar(show.legend = FALSE) +
-  scale_fill_brewer(palette = "RdYlGn", direction = -1) +
+  geom_bar(show.legend = FALSE) +  # Désaffichage de la légende
+  scale_fill_brewer(palette = "RdYlGn", direction = -1) +  # Palette de couleurs : rouge (mauvais) à vert (bon)
   labs(
     title = "Distribution des Étiquettes DPE dans l'Ain",
     x = "Étiquette DPE",
     y = "Nombre de logements"
   ) +
-  theme_minimal()
+  theme_minimal()  # Choix du thème "minimal" pour ce graphique
 ```
 
 ```{r saut de ligne1, include=F}
-# j'ajoute cette ligne de code car le début de l'interprétation du graphique commence dans le graphique
+# création d'un chunk intermédiaire entre le graphique et le texte car bug graphique
+# include=F permet de cacher le code et son résultat dans le r markdown
 ```
 
 Ce graphique montre la répartition des logements par classe énergétique. On observe une prédominance des classes D et E, ce qui suggère un parc immobilier moyennement performant. Les logements très performants (A, B) et les logements peu performants (G) sont minoritaires, bien que la classe G soit plus représentée que la A.
@@ -177,9 +223,12 @@ Ce graphique montre la répartition des logements par classe énergétique. On o
 ## Performance & Consommation
 
 ```{r Consommation par classes énergétiques (Statistique Bivariée)}
+#Boxplot de la consommation par classe énergétique
+# permettant de voir la distribution et la dispersion de la consommation pour chaque étiquette
+
 ggplot(dpe_clean, aes(x = etiquette_dpe, y = conso_5_usages_par_m2_ep, fill = etiquette_dpe)) +
-  geom_boxplot(show.legend = FALSE) +
-  scale_fill_brewer(palette = "RdYlGn", direction = -1) +
+  geom_boxplot(show.legend = FALSE) +  # Boîtes à moustaches (boxplot)
+  scale_fill_brewer(palette = "RdYlGn", direction = -1) +  # Même palette que le graphique précédent
   labs(
     title = "Consommation d'énergie par classes énergétiques",
     x = "Étiquette DPE",
@@ -191,9 +240,11 @@ ggplot(dpe_clean, aes(x = etiquette_dpe, y = conso_5_usages_par_m2_ep, fill = et
 #### Impact de l'Énergie de Chauffage
 
 ```{r Répartition DPE par Énergie de Chauffage (Top Énergies)}
+# Barres empilées à 100% (proportion de chaque étiquette par énergie)
+# Montre comment les étiquettes DPE se répartissent selon le type de chauffage
 
 ggplot(dpe_clean_top_energies, aes(x = type_energie_principale_chauffage, fill = etiquette_dpe)) +
-  geom_bar(position = "fill") +
+  geom_bar(position = "fill") +  # "fill" = barres empilées à 100% (proportion)
   scale_fill_brewer(palette = "RdYlGn", direction = -1) +
   labs(
     title = "Répartition des classes énergétiques par Énergie de Chauffage",
@@ -202,54 +253,63 @@ ggplot(dpe_clean_top_energies, aes(x = type_energie_principale_chauffage, fill =
     fill = "DPE"
   ) +
   theme_minimal() +
-  coord_flip()
+  coord_flip()  # Inverse les axes pour une meilleure lisibilité (barres horizontales)
 ```
 
 ```{r saut de ligne2, include=F}
-# j'ajoute cette ligne de code car le début de l'interprétation du graphique commence dans le graphique
+# CHUNK INVISIBLE : séparateur entre graphique et texte
 ```
 
 Ce graphique montre la composition des étiquettes DPE pour chaque type de chauffage. On observe des tendances claires : l'électricité est associée à un grand nombre de DPE. Le Fioul est, sans surprise, massivement associé aux classes E, F et G. Le Gaz semble plus concentré sur les classes C et D.
 
 
 ```{r Consommation par Énergie de Chauffage (Statistique Bivariée)}
-ggplot(dpe_clean_top_energies, aes(x = type_energie_principale_chauffage, y = conso_5_usages_par_m2_ep, fill = type_energie_principale_chauffage)) +
-  geom_boxplot(show.legend = FALSE) +
+# Boxplot de la consommation par type de chauffage
+# Compare les distributions de consommation selon l'énergie utilisée
+
+ggplot(dpe_clean_top_energies, aes(x = type_energie_principale_chauffage, y = conso_5_usages_par_m2_ep, 
+                                     fill = type_energie_principale_chauffage)) +
+  geom_boxplot(show.legend = FALSE) +  # Boxplot sans légende
   labs(
     title = "Consommation d'énergie par Type de Chauffage",
     x = "Type d'énergie (principales)",
     y = "Consommation (kWh/m²/an)"
   ) +
   theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotation des labels à 45° pour la lisibilité
 ```
 
 ```{r saut de ligne3, include=F}
-# j'ajoute cette ligne de code car le début de l'interprétation du graphique commence dans le graphique
+# chunk invisible (bugs d'affichages) : séparateur
 ```
 
 Ce graphique compare la consommation médiane. Le Fioul présente la médiane de consommation la plus élevée et la plus dispersée (boîte la plus haute). L'électricité a également une boîte très large, confirmant la grande variabilité des systèmes électriques (des plus inefficaces aux plus performants). Le gaz montre une consommation médiane plus contenue que le fioul ou l'électricité (hors PAC).
 
 ```{r Tableau Bivarié : Énergie et DPE (Extrait)}
+# Statistiques par type d'énergie de chauffage
+# Calcule et affiche le nombre de logements et la consommation moyenne/médiane par énergie
+
 dpe_clean_top_energies %>%
-  group_by(type_energie_principale_chauffage) %>%
+  group_by(type_energie_principale_chauffage) %>%  # Regroupe par type d'énergie
   summarise(
-    `Nombre de logements` = n(),
+    `Nombre de logements` = n(),  # Compte le nombre de logements
     `Consommation Moyenne (kWh/m²/an)` = mean(conso_5_usages_par_m2_ep, na.rm = TRUE),
     `Consommation Médiane (kWh/m²/an)` = median(conso_5_usages_par_m2_ep, na.rm = TRUE)
   ) %>%
-  arrange(desc(`Consommation Moyenne (kWh/m²/an)`)) %>%
-  gt() %>%
+  arrange(desc(`Consommation Moyenne (kWh/m²/an)`)) %>%  # Tri par consommation décroissante
+  gt() %>%  # Conversion en tableau GT
   tab_header(
     title = "Statistiques Bivariées : Consommation par Énergie"
   ) %>%
+  # Formatage des nombres décimaux
   fmt_number(
-    columns = where(is.numeric),
+    columns = where(is.numeric),  # Applique le formatage à toutes les colonnes numériques
     decimals = 1,
     use_seps = TRUE,
     sep_mark = " ",
     dec_mark = ","
   ) %>%
+  # Formatage spécifique pour les entiers (nombre de logements)
   fmt_integer(
     columns = `Nombre de logements`,
     use_seps = TRUE,
