@@ -56,51 +56,53 @@ Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maî
 
 ### Niveau Intermédiaire
 - **12 thèmes visuels** personnalisables (bleu, noir, violet, vert, rouge, jaune + variantes claires)
-- **Export des graphiques** en PNG haute résolution (300 DPI)
+- **Export des graphiques** en PNG
 - **Export des données** filtrées en CSV
 - **Calcul du coefficient de corrélation** entre variables numériques
 - **Régression linéaire simple** avec droite de tendance
 
 ### Niveau Expert
 - **Charte graphique CSS** personnalisée
-- **Authentification utilisateur** avec mots de passe hashés (Argon2)
+- **Authentification utilisateur** avec mots de passe
 - **Rafraîchissement automatique** des données via l'API ADEME
-- Mise à jour **incrémentale** des DPE (pas de doublons)
 
 ---
 
 ## Démo
 
 ### Application en Ligne
-**URL de déploiement** : `https://[votre-compte].shinyapps.io/dpe-ain-01/`
+**URL de déploiement** : `https://matteodelin.shinyapps.io/appdpe/`
 
 ### Vidéo de Démonstration
-**YouTube** : [Lien vers la vidéo privée]
+**YouTube** : https://youtu.be/rHr7DwY366s
 
 ### Structure du Projet
 
 ```
 │
 ├── app/                              # Code source de l’application Shiny
-│   ├── app.R                         # Fichier principal Shiny (ou ui.R + server.R)
-│   ├── www/                          # Ressources statiques (images, icônes)
-│   │   ├── logo.png
-│   └── data/                         # Données locales accessibles à l’app
-│       ├── dpe_clean.csv
+│   ├── app.R                         # Fichier principal Shiny
+│   ├── www/                          
+│   │   ├── logo-ADEME.png
+│   │   ├── logo-ADEME.png
+│   │   └── style.css
+|
+├── data/                             # Données locales accessibles à l’app
+│   └── dpe_clean.csv
 │
 ├── data_preparation/                 # Scripts de préparation et d’analyse des données
-│   ├── extraction_api.R
+│   └── extraction_api.R
 │
 ├── rapport/                             
-│   ├── rapport_statistique.Rmd              le script de votre rapport Rmarkdown
-│   ├── rapport_statistique.html/pdf           la version "knit" en HTML ou pdf (4 à 6 pages environ)
+│   ├── rapport_statistique.Rmd       # Le script de rapport Rmarkdown
+│   └── rapport_statistique.html/pdf  # Version "knit" en HTML ou pdf
 |
 ├── docs/                             # Documentation du projet
-│   ├── technical_doc.md              # Documentation technique (2 pages max)
-│   ├── functional_doc.md             # Documentation fonctionnelle (2 pages max)
+│   ├── technical_doc.md              # Documentation technique
+│   └── functional_doc.md             # Documentation fonctionnelle
+|
 └── README.md   # README principal du dépôt avec le lien de la vidéo démo et de la démo déployé.
 
-└── .gitignore                  # Fichiers à ignorer (CSV volumineux)
 ```
 
 ## Documentation

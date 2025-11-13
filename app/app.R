@@ -1,3 +1,4 @@
+# Packages de l'application
 library(shiny)
 library(leaflet)
 library(bslib)
@@ -19,7 +20,7 @@ library(lubridate)
 
 
 extract_data = function(){
-  df = read.csv("https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/data/dpe_clean.csv")
+  df = read.csv("https://raw.githubusercontent.com/MatteoDelin/iut_sd2_rshiny_enedis/refs/heads/main/data/dpe_clean.csv") #Lien vers le fichier de données stocké sur GitHub
   
   # Convertie certaine variable dans leur bon type
   df$code_postal_ban = as.character(df$code_postal_ban)
@@ -47,28 +48,30 @@ filtre_map = function(df){
   sf_data_wgs84 = st_transform(sf_data, crs = 4326)  # WGS84
   
   coords_wgs84 = st_coordinates(sf_data_wgs84)
+  
+  # Convertie les données géographique de la base en données exploitable par leaflet
   df$latitude[valid_coords] = coords_wgs84[, "Y"]
   df$longitude[valid_coords] = coords_wgs84[, "X"]
   
-  df = df %>%
-    filter(longitude > 4 & latitude > 44)
+  # Garde uniquement les coordonées se trouvant dans le département de l'Ain pour éviter d'avoir les points (0,0) des lignes sans coordonée de base
+  df = subset(df, (longitude > 4 & latitude > 44))
   
   return(df)
 }
 
 # Fonction pour récupérer les nouvelles données via API
 refresh_api = function(date_derniere_maj) {
-  code_departement = c("01")
+  code_departement = c("01") # Définie la liste des départements à extraire
   
   ls_base_url = c("https://data.ademe.fr/data-fair/api/v1/datasets/dpe03existant/lines",
                   "https://data.ademe.fr/data-fair/api/v1/datasets/dpe02neuf/lines")
   
   select_fields = "numero_dpe,date_etablissement_dpe,etiquette_dpe,type_batiment,surface_habitable_logement,classe_inertie_batiment,adresse_ban,code_postal_ban,code_insee_ban,code_region_ban,code_departement_ban,coordonnee_cartographique_x_ban,coordonnee_cartographique_y_ban,deperditions_enveloppe,qualite_isolation_enveloppe,conso_5_usages_ep,conso_5_usages_par_m2_ep,type_energie_n1,cout_total_5_usages,type_energie_principale_chauffage"
   
-  type_dpe = c("existant","neuf")
+  type_dpe = c("existant","neuf") #liste des type de DPE pour ajouter une colonne et pouvoir les filtrer plus tard
   i=0
   
-  date_fin = as.Date("2025-10-30")
+  date_fin = Sys.Date()
   
   MAX_SIZE = 10000 # Taille maximale de page
   cpt = 0
@@ -82,10 +85,8 @@ refresh_api = function(date_derniere_maj) {
                   qualite_isolation_enveloppe = character(), conso_5_usages_ep = numeric(),
                   conso_5_usages_par_m2_ep = numeric(), type_energie_n1 = character(),
                   cout_total_5_usages = numeric(), type_energie_principale_chauffage = character(), type_dpe = character(), stringsAsFactors = FALSE)
-  # --- Fin Paramètres inchangés ---
-  
-  
-  # Boucles principales
+
+  # Boucles pour éviter de dépasser les 10000 lignes
   for (base_url in ls_base_url) {
     i=i+1
     for (code_dep in code_departement) {
@@ -94,6 +95,7 @@ refresh_api = function(date_derniere_maj) {
         annee=year(date_debut)
         mois=month(date_debut)
         
+        # Preparation des date de debut et de fin de la requête API
         if (mois<10){
           date_debut = paste0(annee,"-0",mois,"-01")
         }
@@ -125,46 +127,36 @@ refresh_api = function(date_derniere_maj) {
         # Exécution de la requête
         response = GET(modify_url(base_url, query = params))
         
+        # Recuperation du résultat et traitement afin qu'on puisse l'utiliser après
         temp_data = fromJSON(rawToChar(response$content), flatten = FALSE)
         temp_df = temp_data$result
-        print(type_dpe[i])
-        print(base_url)
         temp_df$type_dpe = type_dpe[i]
         nb_rows = ifelse(is.null(nrow(temp_df)), 0, nrow(temp_df))
         
-        print(paste0(date_debut," TO ",date_fin_mois," : ",nb_rows,"lignes suplémentaire"))
-        
-        # Ajout des données au DataFrame principal
+        # Ajout des données au DataFrame principal si le dataframe n'est pas vide
         if (!is.null(nrow(temp_df)) && nrow(temp_df) > 0) {
           df = dplyr::bind_rows(df, temp_df)
         }
         
+        # Avancer de la date au mois suivant pour la requette suivante
         if (mois==12){
           date_debut=paste0(annee+1,"-01-01")
         }
         else{
           date_debut=paste0(annee,"-",mois+1,"-01")
         }
-        
-        if (mois==12){
-          date_fin_mois=paste0(annee+1,"-02-01")
-        }
-        else{
-          date_fin_mois=paste0(annee,"-",mois+2,"-01")
-        }
-        
-        
+
         Sys.sleep(0.1) # Pause entre les requêtes pour ne pas surcharger le serveur
       }
     }
   }
-  df$`_score` = NULL
+  df$`_score` = NULL # Retire la colonne _score automatiquement présente dans les résulat car elle n'est pas utile
   return(df)
 }
 
-table_data=extract_data()
+table_data=extract_data() # Stok les données dans un dataframe
 
-# Base d'utilisateurs
+# Base d'utilisateurs pour se connecter
 user_base = tibble::tibble(
   user = c("admin", "user"),
   password = sapply(c("admin", "Python DASH > R Shiny"), sodium::password_store),
@@ -172,11 +164,15 @@ user_base = tibble::tibble(
   name = c("Administrateur", "Utilisateur")
 )
 
+# Création du ui en tant que FluidPage 
 ui = fluidPage(
   shinyjs::useShinyjs(),
 
   tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/app/www/style.css"),
+    # Liens vers le fichier de style de l'application
+    tags$link(rel = "stylesheet", type = "text/css", href = "style.css"),
+    
+    # Ajout d'une brique de code JS génerer grâce à ChatGPT afin de pouvoir gerer le changement de thème de la page
     tags$script(HTML("
     Shiny.addCustomMessageHandler('change_skin', function(skin) {
       // Enlever toutes les classes skin-*
@@ -186,7 +182,9 @@ ui = fluidPage(
       // Ajouter la nouvelle classe
       $('body').addClass('skin-' + skin);
     });
-  ")),
+    ")),
+    
+    #Ajout de certaine Class CSS directement dans le code afin qu'elle est le niveau de priorité le plus élever possible
     tags$style(HTML("
     .main-header { height: 50px !important; }
     .main-header .navbar { min-height: 50px !important; }
@@ -211,6 +209,8 @@ ui = fluidPage(
       
       dashboardPage(
         skin = "blue",
+        
+        # Definition du bandeau en haut de la page
         dashboardHeader(
           title = "DPE du département de l'Ain (01)",
           tags$li(
@@ -245,6 +245,7 @@ ui = fluidPage(
           )
         ),
 
+        # Définition de la sidebar pour pouvoir choisir les pages
         dashboardSidebar(
           sidebarMenu(
             id = "tabs",
@@ -254,12 +255,16 @@ ui = fluidPage(
             menuItem("Filtres", tabName = "Filtre", icon = icon("filter")),
             menuItem("Contexte", tabName = "Contexte", icon = icon("info-circle"))
           )
-      ),
+        ),
+      
+        # Définition du coprs de l'application qui changera en fonction de la page choisi
         dashboardBody(tabItems(
-          # Premier onglet
+          
+          # Premier onglet pour les graphique
           tabItem(tabName = "Graphique",
             h3("Analyse et Visualisation des Données DPE"),
             sidebarLayout(
+              
               # Colonne de Gauche : Indicateurs
               sidebarPanel(
                 width = 3,
@@ -284,13 +289,14 @@ ui = fluidPage(
             mainPanel(
               width = 9,
               h4("Graphiques Interactifs"),
-              # Affichage des graphiques
+              
               fluidRow(
                 column(12, align = "right",
                        downloadButton("download_histo", "Exporter en PNG", 
                                       icon = icon("download"), class = "btn-sm btn-info")
                 )
               ),
+              # Affichage de l'histogramme de consomation
               plotlyOutput("plot_histogramme_conso"),
               tags$br(),
               fluidRow(
@@ -299,6 +305,7 @@ ui = fluidPage(
                                       icon = icon("download"), class = "btn-sm btn-info")
                 )
               ),
+              # Affichage du bar plot de étiquette DPE
               plotlyOutput("plot_barres_etiquette"),
               tags$br(),
               fluidRow(
@@ -308,6 +315,7 @@ ui = fluidPage(
                 )
               ),
               checkboxInput("filter_outliers_cout", "Exclure les valeurs extrêmes", value = TRUE),
+              # Affichage du box plot du cout 
               plotlyOutput("plot_boxplot_cout"),
               tags$br(),
               # Choix des variables pour le nuage de points
@@ -327,17 +335,18 @@ ui = fluidPage(
                                       icon = icon("download"), class = "btn-sm btn-info")
                 )
               ),
+              # Affichage du nuage de point pour la coréalation
               plotlyOutput("plot_nuage_points")
               )
             )
           ),
           
-          # Deuxième onglet
+          # Deuxième onglet pour la cartographie des DPE
           tabItem(tabName = "Cartographie", 
             leafletOutput("ma_carte", height = "600px")
           ),
           
-          # Troisième onglet
+          # Troisième onglet pour le tableau de toutes les valeurs
           tabItem(tabName = "Tableaux", 
             h3("Tableaux des données"),
             fluidRow(
@@ -359,7 +368,7 @@ ui = fluidPage(
             DT::DTOutput("data_table")
           ),
           
-          # Quatrième onglet
+          # Quatrième onglet pour la gestion des filtres de données
           tabItem(tabName = "Filtre",
             h3("Filtrer les données de l'application"),
             fluidRow(
@@ -390,7 +399,7 @@ ui = fluidPage(
             )
           ),
           
-          # Cinquième onglet
+          # Cinquième onglet pour donner le contexte de l'application
           tabItem(tabName = "Contexte",
             fluidRow(
               # SECTION 1 : Présentation du projet
@@ -418,11 +427,11 @@ ui = fluidPage(
                          )
                   ),
                   column(4,
-                         tags$img(src = "https://github.com/MatteoDelin/R-Shiny-DPE-Projet/blob/main/app/www/Logo-ENEDIS.png?raw=true",
+                         tags$img(src = "Logo-ENEDIS.png",
                                   width = "100%",
                                   style = "margin-top: 20px;"),
                          tags$br(), tags$br(),
-                         tags$img(src = "https://github.com/MatteoDelin/R-Shiny-DPE-Projet/blob/main/app/www/Logo-ADEME.png?raw=true",
+                         tags$img(src = "Logo-ADEME.png",
                                   width = "80%",
                                   style = "margin-top: 20px;")
                   )
@@ -539,7 +548,7 @@ ui = fluidPage(
 
 server = function(input, output, session) {
   
-  # D'ABORD : Définir l'authentification
+  # Définir l'authentification
   credentials <- shinyauthr::loginServer(
     id = "login",
     data = user_base,
@@ -549,11 +558,13 @@ server = function(input, output, session) {
     log_out = reactive(logout_init())
   )
   
+  # Définir le logout de l'application
   logout_init <- shinyauthr::logoutServer(
     id = "logout",
     active = reactive(credentials()$user_auth)
   )
   
+  # Gerer l'affichage pour la première connexion
   observe({
     if (credentials()$user_auth) {
       shinyjs::show(id = "app_content")
@@ -567,12 +578,11 @@ server = function(input, output, session) {
   
   # Gestion du changement de thème
   observeEvent(input$theme_selector, {
-    req(input$theme_selector)
-    
+
     # Envoyer le message JavaScript pour changer le thème
     session$sendCustomMessage(type = "change_skin", message = input$theme_selector)
     
-    # Notification
+    # Définition des thèmes possible pour l'application
     theme_names <- c(
       "blue" = "Bleu",
       "black" = "Noir",
@@ -588,6 +598,7 @@ server = function(input, output, session) {
       "yellow-light" = "Jaune Clair"
     )
     
+    # Notification pour prévenir du changement de thème
     showNotification(
       paste("Thème changé:", theme_names[input$theme_selector]),
       type = "message",
@@ -595,11 +606,11 @@ server = function(input, output, session) {
     )
   }, ignoreInit = TRUE)
   
-  # Initialiser les données réactives
+  # Initialiser les données réactives baser sur le csv 
   rv = reactiveValues(data = table_data)
   
 
-  # Rendu de la carte
+  # Rendu de la carte apprès application du filtre des coordonnées
   output$ma_carte = renderLeaflet({
     leaflet(filtre_map(rv$data)) %>%
       addTiles() %>%
@@ -623,7 +634,7 @@ server = function(input, output, session) {
         scrollCollapse = TRUE,
         pageLength = 25,          # 25 lignes par page
         lengthMenu = c(10, 25, 50, 100),  # Options de pagination
-        dom = 'Blfrtip',          # B=boutons, l=length, f=filter, r=processing, t=table, i=info, p=pagination
+        dom = 'Blfrtip',
         searchHighlight = TRUE,   # Surligner les recherches
         language = list(
           search = "Rechercher :",
@@ -651,10 +662,7 @@ server = function(input, output, session) {
     content = function(file) {
       # Récupérer les lignes visibles après filtrage DT
       data_to_export = rv$data
-      
-      # Si vous voulez vraiment les données filtrées par DT aussi,
-      # il faut utiliser input$data_table_rows_all pour toutes les lignes
-      # ou input$data_table_rows_current pour la page actuelle
+
       if (!is.null(input$data_table_rows_all)) {
         data_to_export = rv$data[input$data_table_rows_all, ]
       }
@@ -663,27 +671,29 @@ server = function(input, output, session) {
     }
   )
   
-  ###### Page de Filtre ###### 
+  ###### Page de Filtre ######
+  
+  # Filtre des Date
   output$date_dpe_ui = renderUI({
     
-    dates = as.Date(table_data$date_etablissement_dpe)
+    dates = as.Date(table_data$date_etablissement_dpe) # Récupère toutes les date de DPE en les convertissante en format Date
     
     dateRangeInput(
       "filtre_date_dpe",
       label = "Date d'établissement DPE :",
       # Utilisation de na.rm = TRUE pour ignorer les NA
-      start = min(dates, na.rm = TRUE),
-      end = max(dates, na.rm = TRUE)
+      start = min(dates, na.rm = TRUE), #pemier DPE de la base
+      end = max(dates, na.rm = TRUE) #dernier DPE de la base 
     )
   })
   
-  # Surface
+  # Filtre des surface Surface
   output$surface_habitable_ui = renderUI({
     
-    surfaces = table_data$surface_habitable_logement
+    surfaces = table_data$surface_habitable_logement #Ensemble des surfaces des DPE
     
-    min_surface = floor(min(surfaces, na.rm = TRUE))
-    max_surface = ceiling(max(surfaces, na.rm = TRUE))
+    min_surface = floor(min(surfaces, na.rm = TRUE)) #plus petit surface
+    max_surface = ceiling(max(surfaces, na.rm = TRUE)) #plus grande surface
     
     sliderInput(
       "filtre_surface_habitable",
@@ -695,70 +705,71 @@ server = function(input, output, session) {
     )
   })
   
-  # etiquette DPE
+  # Filtre etiquette DPE
   output$etiquette_dpe_ui = renderUI({
     selectInput(
       "filtre_etiquette_dpe",
       label = "Étiquette DPE :",
-      # trier (sort) les choix pour une meilleure lisibilité
-      choices = sort(unique(table_data$etiquette_dpe)),
+      # trie les choix pour une meilleure lisibilité
+      choices = sort(unique(table_data$etiquette_dpe)), # Récupère une seul fois toutes les étiquettes de DPE
       multiple = TRUE
     )
   })
   
-  # type batiment
+  # Filtre type batiment
   output$type_batiment_ui = renderUI({
     selectInput(
       "filtre_type_batiment",
       label = "Type de bâtiment :",
-      choices = sort(unique(table_data$type_batiment)),
+      choices = sort(unique(table_data$type_batiment)), # Récupère une seul fois toutes les type de batiement parmis les DPE
       multiple = TRUE
     )
   })
   
-  # classe inertie
+  # Filtre classe inertie
   output$classe_inertie_ui = renderUI({
     selectInput(
       "filtre_classe_inertie",
       label = "Classe d'inertie du bâtiment :",
-      choices = sort(unique(table_data$classe_inertie_batiment)),
+      choices = sort(unique(table_data$classe_inertie_batiment)), # Récupère une seul fois toutes les classe innertie de DPE
       multiple = TRUE
     )
   })
   
-  # type energie n1
+  # Filtre type energie n1
   output$type_energie_n1_ui = renderUI({
     selectInput(
       "filtre_type_energie_n1",
       label = "Type d'énergie N1 :",
-      choices = sort(unique(table_data$type_energie_n1)),
+      choices = sort(unique(table_data$type_energie_n1)), # Récupère une seul fois toutes les type d'énergie n1 de DPE
       multiple = TRUE
     )
   })
   
-  # energie chaffage
+  # Filtre energie chaffage
   output$type_chaffage_ui = renderUI({
     selectInput(
       "filtre_type_chaffage",
       label = "Énergie principale de chauffage :",
-      choices = sort(unique(table_data$type_energie_principale_chauffage)),
+      choices = sort(unique(table_data$type_energie_principale_chauffage)), # Récupère une seul fois toutes les type de chaffage de DPE
       multiple = TRUE
     )
   })
   
-  # energie chaffage
+  # Filtre Etat logement
   output$type_dpe_ui = renderUI({
     selectInput(
       "filtre_type_dpe",
       label = "Etat du logement :",
-      choices = sort(unique(table_data$type_dpe)),
+      choices = sort(unique(table_data$type_dpe)), # Récupère une seul fois toutes les type de logement de DPE (neuf ou existant)
       multiple = TRUE
     )
   })
   
+  # Applique le filtre en fonction des ce qui à été choisis
   observeEvent(input$appliquer_filtres, {
     
-    data = table_data
+    data = table_data # Récupère les données vierge de modification pour le filtre
     # 1. FILTRAGE DATE
     if (!is.null(input$filtre_date_dpe) && length(input$filtre_date_dpe) == 2) {
       data = data %>%
@@ -807,9 +818,8 @@ server = function(input, output, session) {
   # KPI 1 : Total DPE
   output$vbox_total_dpe = renderValueBox({
     data_kpi = rv$data
-    req(data_kpi)
-    
-    total = format(nrow(data_kpi), big.mark = " ")
+
+    total = format(nrow(data_kpi), big.mark = " ") #Compte le nombre de ligne dans la table et le convertie en string
     
     valueBox(
       value = total,
@@ -821,10 +831,9 @@ server = function(input, output, session) {
   
   # KPI 2 : Surface moyenne
   output$vbox_surface_moyenne = renderValueBox({
-    data_kpi = rv$data  # CORRECTION : enlever les ()
-    req(data_kpi, "surface_habitable_logement" %in% names(data_kpi))
-    
-    surface_moy = round(mean(data_kpi$surface_habitable_logement, na.rm = TRUE), 0)
+    data_kpi = rv$data
+
+    surface_moy = round(mean(data_kpi$surface_habitable_logement, na.rm = TRUE), 0) #Calcul la surface moyenne des DPE
     
     valueBox(
       value = paste(surface_moy, "m²"),
@@ -837,14 +846,11 @@ server = function(input, output, session) {
   # KPI 3 : Isolation très bonne
   output$vbox_isolation_tres_bonne = renderValueBox({
     data_kpi = rv$data
-    req(data_kpi, "qualite_isolation_enveloppe" %in% names(data_kpi))
-    
-    nb_tres_bonne = data_kpi %>%
-      filter(qualite_isolation_enveloppe == "très bonne") %>%
-      nrow()
+
+    nb_tres_bonne = nrow(subset(data_kpi, qualite_isolation_enveloppe == "très bonne")) # Calcul le nombre de DPE avec la qualite d'isolation très bonne
     
     pourcentage = if(nrow(data_kpi) > 0) {
-      round((nb_tres_bonne / nrow(data_kpi)) * 100, 1)
+      round((nb_tres_bonne / nrow(data_kpi)) * 100, 1)  # Ramène se nombre à un pourcentage du total de DPE
     } else { 0 }
     
     valueBox(
@@ -874,15 +880,22 @@ server = function(input, output, session) {
   # Graphique 2 : Barres des étiquette_dpe
   output$plot_barres_etiquette = renderPlotly({
     data_filtered = rv$data
-    p = data_filtered %>%
-      count(etiquette_dpe) %>%
-      mutate(etiquette_dpe = factor(etiquette_dpe, levels = c("A", "B", "C", "D", "E", "F", "G", "Vierge"))) %>%
-      ggplot(aes(x = etiquette_dpe, y = n, fill = etiquette_dpe)) +
+    
+    # Compte les occurrences
+    data_count = count(data_filtered, etiquette_dpe)
+    
+    # Converti en facteur avec les niveaux ordonnés
+    data_count$etiquette_dpe = factor(data_count$etiquette_dpe, 
+                                      levels = sort(unique(data_filtered$etiquette_dpe)))
+    
+    # Créer le graphique
+    p = ggplot(data_count, aes(x = etiquette_dpe, y = n, fill = etiquette_dpe)) +
       geom_bar(stat = "identity") +
       labs(title = "Répartition par Étiquette DPE",
            x = "Étiquette DPE",
            y = "Nombre de DPE") +
       theme_minimal()
+    
     ggplotly(p)
   })
   
@@ -890,15 +903,15 @@ server = function(input, output, session) {
   output$plot_boxplot_cout = renderPlotly({
     data_filtered = rv$data
     
+    # Regarde si il faut filtrer les extrèmes
     if(input$filter_outliers_cout) {
       # Filtrer les extrêmes
       Q1 = quantile(data_filtered$cout_total_5_usages, 0.25, na.rm = TRUE)
       Q3 = quantile(data_filtered$cout_total_5_usages, 0.75, na.rm = TRUE)
       IQR = Q3 - Q1
       
-      data_filtered = data_filtered %>%
-        filter(cout_total_5_usages >= (Q1 - 1.5 * IQR) & 
-                 cout_total_5_usages <= (Q3 + 1.5 * IQR))
+      data_filtered = data_filtered[data_filtered$cout_total_5_usages >= (Q1 - 1.5 * IQR) & 
+                                      data_filtered$cout_total_5_usages <= (Q3 + 1.5 * IQR), ]
     }
     
     p = ggplot(data_filtered, aes(y = cout_total_5_usages)) +
@@ -907,8 +920,10 @@ server = function(input, output, session) {
            y = "Coût Total (€)") +
       theme_minimal()
     
-    ggplotly(p) %>% 
-      layout(showlegend = FALSE)
+    plotly_obj = ggplotly(p)
+    plotly_obj = layout(plotly_obj, showlegend = FALSE)
+    
+    plotly_obj
   })
   
   # Graphique 4 : Nuage de points
@@ -958,13 +973,9 @@ server = function(input, output, session) {
     }
     
     data_filtered = rv$data
-    
-    req(input$scatter_x %in% names(data_filtered),
-        input$scatter_y %in% names(data_filtered))
-    
-    data_clean = data_filtered %>%
-      filter(is.finite(!!sym(input$scatter_x)) & 
-               is.finite(!!sym(input$scatter_y)))
+
+    data_clean = data_filtered[is.finite(data_filtered[[input$scatter_x]]) & 
+                               is.finite(data_filtered[[input$scatter_y]]), ]
     
     if(nrow(data_clean) < 2) {
       return("Corrélation : Non calculable")
@@ -977,36 +988,28 @@ server = function(input, output, session) {
     paste("Coefficient de corrélation (r) :", round(correlation, 3))
   })
   
-  # Graphique nuage de points (sans intervalle de confiance)
+  # Graphique nuage de points
   output$plot_nuage_points = renderPlotly({
     
-    if(is.null(input$scatter_x) || is.null(input$scatter_y) ||
-       input$scatter_x == "" || input$scatter_y == "") {
-      return(
-        plotly_empty() %>% 
-          layout(
-            title = list(
-              text = "Veuillez sélectionner les variables X et Y",
-              font = list(size = 16, color = "#777")
-            ),
-            xaxis = list(showgrid = FALSE, showticklabels = FALSE),
-            yaxis = list(showgrid = FALSE, showticklabels = FALSE)
-          )
-      )
+    if(is.null(input$scatter_x) || is.null(input$scatter_y) || input$scatter_x == "" || input$scatter_y == "") {
+      empty_plot = plotly_empty()
+      empty_plot = layout(
+                          empty_plot,
+                          title = list(text = "Veuillez sélectionner les variables X et Y",
+                                       font = list(size = 16, color = "#777")),
+                          xaxis = list(showgrid = FALSE, showticklabels = FALSE),
+                          yaxis = list(showgrid = FALSE, showticklabels = FALSE)
+                        )
+      
+      return(empty_plot)
     }
     
-    data_filtered = rv$data
-    
-    req(input$scatter_x %in% names(data_filtered),
-        input$scatter_y %in% names(data_filtered))
-    
-    data_clean = data_filtered %>%
-      filter(is.finite(!!sym(input$scatter_x)) & 
-               is.finite(!!sym(input$scatter_y)))
+    data_clean = rv$data
     
     if(nrow(data_clean) == 0) {
-      return(plotly_empty() %>% 
-               layout(title = "Aucune donnée valide"))
+      empty_plot = plotly_empty()
+      empty_plot = layout(empty_plot, title = "Aucune donnée valide")
+      return(empty_plot)
     }
     
     p = ggplot(data_clean, aes(x = !!sym(input$scatter_x), 
@@ -1022,25 +1025,12 @@ server = function(input, output, session) {
       theme_minimal() +
       theme(plot.title = element_text(hjust = 0.5, face = "bold"))
     
-    ggplotly(p) %>%
-      layout(showlegend = FALSE)
+    plotly_obj = ggplotly(p)
+    plotly_obj = layout(plotly_obj, showlegend = FALSE)
+    plotly_obj
   })
   
-  # OUTPUTS pour la page Contexte
-  
-  # Période des données
-  output$periode_data = renderText({
-    dates = as.Date(rv$data$date_etablissement_dpe)
-    min_date = min(dates, na.rm = TRUE)
-    max_date = max(dates, na.rm = TRUE)
-    paste(format(min_date, "%d/%m/%Y"), "au", format(max_date, "%d/%m/%Y"))
-  })
-  
-  # Nombre total de DPE
-  output$nombre_total_dpe = renderText({
-    format(nrow(rv$data), big.mark = " ")
-  })
-  
+  ### Fonction d'export des graphiques
   # Export graphique Histogramme
   output$download_histo = downloadHandler(
     filename = function() {
@@ -1110,7 +1100,6 @@ server = function(input, output, session) {
       paste("nuage_points_", input$scatter_x, "_", input$scatter_y, "_", Sys.Date(), ".png", sep = "")
     },
     content = function(file) {
-      req(input$scatter_x, input$scatter_y, input$scatter_x != "", input$scatter_y != "")
       
       data_filtered = rv$data
       data_clean = data_filtered %>%
@@ -1118,7 +1107,7 @@ server = function(input, output, session) {
                  is.finite(!!sym(input$scatter_y)))
       
       p = ggplot(data_clean, aes(x = !!sym(input$scatter_x), 
-                                  y = !!sym(input$scatter_y))) +
+                                 y = !!sym(input$scatter_y))) +
         geom_point(alpha = 0.5, size = 2, color = "#20c997") +
         geom_smooth(method = "lm", se = FALSE, color = "#FF6347", 
                     formula = y ~ x, linewidth = 1) +
@@ -1132,6 +1121,21 @@ server = function(input, output, session) {
     }
   )
   
+  ### Page Contexte
+  # Période des données
+  output$periode_data = renderText({
+    dates = as.Date(rv$data$date_etablissement_dpe)
+    min_date = min(dates, na.rm = TRUE)
+    max_date = max(dates, na.rm = TRUE)
+    paste(format(min_date, "%d/%m/%Y"), "au", format(max_date, "%d/%m/%Y"))
+  })
+  
+  # Nombre total de DPE
+  output$nombre_total_dpe = renderText({
+    format(nrow(table_data), big.mark = " ")
+  })
+  
+  ### Gestion du rephresh de l'API
   observeEvent(input$refresh_data_api, {
     
     showNotification(

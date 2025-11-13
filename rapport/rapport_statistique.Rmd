@@ -7,21 +7,16 @@ output:
     theme: journal  # Thème visuel pour le HTML
     number_sections: true  # Numérotation automatique des sections
 params:
-  # paramètres personnalisés : permettent de filtrer les données avant génération du rapport
-  
-  # Filtre par code postal : l'utilisateur peut entrer un ou plusieurs codes postaux
-  # Format : "code postal" pour un seul code, ou "code postal, code postal,..." pour plusieurs
   code_postal:
     label: "Code Postal"
-    value: "Tous"  # Valeur par défaut : toutes les valeurs
-    input: text  # Type de saisie : texte libre (l'utilisateur tape lui même les codes postaux qui l'intéressent)
-
-  # Filtre par type de logement : menu déroulant avec 3 choix possibles
+    value: "Tous"
+    input: select
+    choices: ["Tous", "01000", "01100", "01120", "01150", "01160", "01170", "01200", "01210", "01220", "01230", "01240", "01250", "01260", "01270", "01280", "01290", "01300", "01310", "01320", "01330", "01340", "01350", "01360", "01370", "01380", "01390", "01400", "01410", "01420", "01430", "01440", "01450", "01460", "01470", "01480", "01500", "01510", "01540", "01550", "01560", "01570", "01580", "01590", "01600", "01630", "01640", "01660", "01680", "01700", "01710", "01720", "01750", "01800", "01960", "01990"]
   type_logement:
     label: "Type de Logement"
-    value: "Tous"  # Valeur par défaut : tous les types inclus
-    input: select  # Type de saisie : liste déroulante
-    choices: ["Tous", "Neuf", "Existant"]  # Options disponibles
+    value: "Tous"
+    input: select
+    choices: ["Tous", "Neuf", "Existant"]
 ---
 
 # Études statistiques simples et KPI sur les DPE dans l'Ain
@@ -69,7 +64,7 @@ library(readr)
 # Importe le fichier CSV depuis GitHub
 
 # Définition du chemin vers le fichier de données
-file_path <- "https://raw.githubusercontent.com/MatteoDelin/R-Shiny-DPE-Projet/refs/heads/main/data/dpe_clean.csv"
+file_path <- "https://raw.githubusercontent.com/MatteoDelin/iut_sd2_rshiny_enedis/refs/heads/main/data/dpe_clean.csv"
 
 # Tentative de lecture du fichier avec gestion d'erreur
 tryCatch({
