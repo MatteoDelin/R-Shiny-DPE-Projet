@@ -71,7 +71,7 @@ Les données proviennent de l'**ADEME** (Agence de l'Environnement et de la Maî
 ## Démo
 
 ### Application en Ligne
-**URL de déploiement** : `https://matteodelin.shinyapps.io/appdpe/`
+**URL de déploiement** : https://matteodelin.shinyapps.io/appdpe/
 
 ### Vidéo de Démonstration
 **YouTube** : https://youtu.be/rHr7DwY366s
